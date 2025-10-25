@@ -11,12 +11,6 @@
 *.gch
 *.pch
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -37,5 +31,10 @@
 *.out
 *.app
 
-# debug information files
-*.dwo
+.pio
+.cache
+
+compile_commands.json
+c_cpp_properties.json
+extensions.json
+launch.json
