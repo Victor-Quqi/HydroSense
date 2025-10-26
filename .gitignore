@@ -34,7 +34,11 @@
 .pio
 .cache
 
+.claude
+.kilocode
+.vscode
+openspec
+AGENTS.md
+CLAUDE.md
+
 compile_commands.json
-c_cpp_properties.json
-extensions.json
-launch.json
