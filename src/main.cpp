@@ -1,7 +1,7 @@
 /**
  * @file main.cpp
  * @brief HydroSense主程序
- * @details 能量自持型智能浇水系统主入口文件
+ * @details 系统主入口文件
  */
 
 #include <Arduino.h>
