@@ -37,8 +37,13 @@ def run_test(port, timeout, command, delay):
         print(f"模式: 主动执行 (命令: '{command}', 超时: {timeout}s)")
         
         # 可选的初始延迟
+        # 增加一个固定的启动延迟，确保设备准备就绪
+        # 这个问题在测试中发现：即使有 --delay，也可能因为设备启动慢而错过命令
+        print("等待 2s 以确保设备初始化完成...")
+        time.sleep(2)
+
         if delay > 0:
-            print(f"等待 {delay}s...")
+            print(f"执行额外延迟 {delay}s...")
             time.sleep(delay)
             
         # 发送命令

@@ -53,8 +53,8 @@ void test_cli_loop() {
             }
             // 清空缓冲区，准备接收下一条命令
             inputBuffer = "";
-        } else {
-            // 将字符添加到缓冲区
+        } else if (incomingChar != '\r') { // 忽略回车符
+            // 将有效字符添加到缓冲区
             inputBuffer += incomingChar;
         }
     }
