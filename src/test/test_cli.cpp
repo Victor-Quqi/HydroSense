@@ -4,34 +4,15 @@
  */
 
 #include "test_cli.h"
+#include "test_command_registry.h"
 
 #ifdef TEST_MODE
 
 // 存储串口输入的缓冲区
-String inputBuffer = "";
+static String inputBuffer = "";
 
-/**
- * @brief 发送信标并换行
- */
 void send_eot() {
     Serial.println(EOT_BEACON);
-}
-
-/**
- * @brief 处理接收到的完整命令
- * @param command 接收到的命令字符串 (不含换行符)
- */
-void handle_command(const String& command) {
-    if (command.equals("ping")) {
-        Serial.println("pong");
-    } else if (command.startsWith("echo ")) {
-        // 提取 "echo " 后面的内容并打印
-        Serial.println(command.substring(5));
-    } else {
-        Serial.println("Error: Unknown command");
-    }
-    // 任何命令处理后都必须发送信标
-    send_eot();
 }
 
 void test_cli_init() {
@@ -49,7 +30,8 @@ void test_cli_loop() {
             // 去除首尾空白字符
             inputBuffer.trim();
             if (inputBuffer.length() > 0) {
-                handle_command(inputBuffer);
+                // 将完整命令转发给注册器处理
+                test_registry_handle_command(inputBuffer);
             }
             // 清空缓冲区，准备接收下一条命令
             inputBuffer = "";
