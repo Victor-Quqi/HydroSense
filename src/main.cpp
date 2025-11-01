@@ -16,6 +16,8 @@ void setup() {
   // 系统初始化
 
   #ifdef TEST_MODE
+    // 初始化串口，用于CLI通信
+    Serial.begin(115200);
     // 测试模式初始化
     test_mode_init();
     test_cli_init();
@@ -27,7 +29,7 @@ void loop() {
 
   #ifdef TEST_MODE
     // 测试模式处理 - 禁用深度睡眠，持续响应CLI
-    test_cli_process();
+    test_cli_loop();
   #else
     // 正常运行模式 - 包含深度睡眠逻辑
   #endif
