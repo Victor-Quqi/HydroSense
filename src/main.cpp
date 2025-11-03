@@ -12,10 +12,21 @@
   #include "test/test_cli.h"
   #include "test/test_command_registry.h"
   #include "test/test_commands_core.h"
+  #include "test/test_commands_hal.h"
 #endif
+
+#include "managers/power_manager.h"
 
 void setup() {
   // 系统初始化
+  power_result_t power_init_result = power_manager_init();
+
+#ifdef TEST_MODE
+  if (power_init_result != POWER_OK) {
+    Serial.printf("[ERROR] Power manager initialization failed: %d\r\n",
+                  power_init_result);
+  }
+#endif
 
   #ifdef TEST_MODE
     // --- 测试模式初始化 ---
@@ -29,8 +40,7 @@ void setup() {
 
     // 3. 注册所有测试命令
     test_commands_core_init();
-    // 未来可在这里添加更多命令模块的初始化，例如:
-    // test_commands_hal_init();
+    test_commands_hal_init();
 
   #endif
 }
