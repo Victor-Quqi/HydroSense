@@ -6,6 +6,8 @@
 #include "test_commands_hal.h"
 #include "test_command_registry.h"
 #include "managers/power_manager.h"
+#include "managers/sensor_manager.h"
+#include "data/data_models.h"
 #include <Arduino.h>
 #include <string.h>
 
@@ -105,10 +107,56 @@ void handle_power(const char* args) {
     }
 }
 
+/**
+ * @brief 处理 "read" 命令
+ * @param args 格式: "<all|humidity|battery>"
+ */
+void handle_read(const char* args) {
+    if (strcmp(args, "all") == 0) {
+        // 读取所有传感器
+        Serial.println("Reading all sensors...");
+        sensor_data_t data;
+        sensor_result_t result = sensor_manager_read_all(&data);
+
+        if (result == SENSOR_OK) {
+            Serial.printf("  - Soil Moisture (ADC): %d\r\n", data.soil_moisture);
+            Serial.printf("  - Battery Voltage:     %.2f V\r\n", data.battery_voltage);
+        } else {
+            Serial.printf("Error: Failed to read sensors. Result: %d\r\n", result);
+        }
+    } else if (strcmp(args, "humidity") == 0) {
+        // 读取湿度
+        Serial.println("Reading humidity sensor...");
+        float humidity;
+        sensor_result_t result = sensor_manager_get_humidity(&humidity);
+
+        if (result == SENSOR_OK) {
+            Serial.printf("  - Soil Moisture (ADC): %.0f\r\n", humidity);
+        } else {
+            Serial.printf("Error: Failed to read humidity. Result: %d\r\n", result);
+        }
+    } else if (strcmp(args, "battery") == 0) {
+        // 读取电池电压
+        Serial.println("Reading battery voltage...");
+        float voltage;
+        sensor_result_t result = sensor_manager_get_battery_voltage(&voltage);
+
+        if (result == SENSOR_OK) {
+            Serial.printf("  - Battery Voltage: %.2f V\r\n", voltage);
+        } else {
+            Serial.printf("Error: Failed to read battery voltage. Result: %d\r\n", result);
+        }
+    } else {
+        Serial.println("Error: Invalid arguments. Usage: read <all|humidity|battery>");
+        return;
+    }
+}
+
 // --- 命令定义 ---
 
 static const CommandRegistryEntry hal_commands[] = {
-    {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"}
+    {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
+    {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"}
 };
 
 // --- 公共 API ---

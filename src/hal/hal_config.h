@@ -34,11 +34,12 @@ constexpr bool POWER_OFF = HIGH;
  * RATIO = (R1 + R2) / R2
  * 
  * 根据实际使用的电阻计算：
- * R1 = 1.1 MΩ (1,100,000 Ω)
- * R2 = 230 kΩ (230,000 Ω)
- * RATIO = (1100000 + 230000) / 230000 = 1330000 / 230000 ≈ 5.7826
+ * R1 = 4.7 MΩ (4,700,000 Ω)
+ * R2 = 0.33 MΩ (330,000 Ω)
+ * RATIO = (4700000 + 330000) / 330000 ≈ 15.2424
  */
-#define VOLTAGE_DIVIDER_RATIO  5.7826f
+#define VOLTAGE_DIVIDER_RATIO  15.2424f
+#define ADC_REFERENCE_VOLTAGE 4.20f
 
 // --- 4. 用户输入 (User Inputs) ---
 #define PIN_ENCODER_A          1
