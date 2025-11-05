@@ -7,6 +7,7 @@
 #include "test_command_registry.h"
 #include "managers/power_manager.h"
 #include "managers/sensor_manager.h"
+#include "managers/actuator_manager.h"
 #include "data/data_models.h"
 #include <Arduino.h>
 #include <string.h>
@@ -152,11 +153,37 @@ void handle_read(const char* args) {
     }
 }
 
+/**
+ * @brief 处理 "pump" 命令
+ * @param args 格式: "run <duration_ms>"
+ */
+void handle_pump(const char* args) {
+    char action[10]; // Buffer for action string
+    uint32_t duration;
+    int items = sscanf(args, "%9s %lu", action, &duration);
+
+    if (items != 2 || strcmp(action, "run") != 0) {
+        Serial.println("Error: Invalid arguments. Usage: pump run <duration_ms>");
+        return;
+    }
+
+    if (duration == 0 || duration > 30000) { // 限制最大运行时长为30秒
+        Serial.println("Error: Duration must be between 1 and 30000 ms.");
+        return;
+    }
+
+    Serial.printf("Running pump for %lu ms...\r\n", duration);
+    actuator_manager_run_pump(duration);
+    Serial.println("Pump command finished.");
+}
+
+
 // --- 命令定义 ---
 
 static const CommandRegistryEntry hal_commands[] = {
     {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
-    {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"}
+    {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"},
+    {"pump", handle_pump, "Control the water pump. Usage: pump run <duration_ms>"}
 };
 
 // --- 公共 API ---

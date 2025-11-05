@@ -19,6 +19,7 @@
 #include "managers/power_manager.h"
 #include "managers/sensor_manager.h"
 #include "managers/log_manager.h"
+#include "managers/actuator_manager.h"
 
 void setup() {
   // 系统初始化
@@ -30,6 +31,7 @@ void setup() {
   log_manager_init();
   power_result_t power_init_result = power_manager_init();
   sensor_manager_init();
+  actuator_manager_init();
 
 #ifdef TEST_MODE
   if (power_init_result != POWER_OK) {
