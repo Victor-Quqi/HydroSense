@@ -6,6 +6,7 @@
 #include "power_manager.h"
 #include "hal/hal_config.h"
 #include "hal/hal_gpio.h"
+#include "managers/log_manager.h"
 #include <Arduino.h>
 
 // --- 私有状态变量 ---
@@ -44,9 +45,7 @@ power_result_t power_manager_init() {
     // 4. 标记为已初始化
     is_initialized = true;
 
-#ifdef TEST_MODE
-    Serial.println("[POWER] Power manager initialized successfully");
-#endif
+    LOG_DEBUG("Power", "Power manager initialized successfully");
 
     return POWER_OK;
 }
@@ -67,9 +66,7 @@ power_result_t power_sensor_enable(bool enable) {
     // 更新软件状态
     is_sensor_powered = enable;
 
-#ifdef TEST_MODE
-    Serial.printf("[POWER] Sensor power %s\r\n", enable ? "ON" : "OFF");
-#endif
+    LOG_DEBUG("Power", "Sensor power %s", enable ? "ON" : "OFF");
 
     return POWER_OK;
 }
@@ -86,9 +83,7 @@ power_result_t power_pump_module_enable(bool enable) {
     hal_gpio_write(PIN_POWER_GATE_PUMP, enable ? POWER_ON : POWER_OFF);
     is_pump_module_powered = enable;
 
-#ifdef TEST_MODE
-    Serial.printf("[POWER] Pump module power %s\r\n", enable ? "ON" : "OFF");
-#endif
+    LOG_DEBUG("Power", "Pump module power %s", enable ? "ON" : "OFF");
 
     return POWER_OK;
 }
@@ -105,9 +100,7 @@ power_result_t power_screen_enable(bool enable) {
     hal_gpio_write(PIN_POWER_GATE_DISPLAY, enable ? POWER_ON : POWER_OFF);
     is_screen_powered = enable;
 
-#ifdef TEST_MODE
-    Serial.printf("[POWER] Screen power %s\r\n", enable ? "ON" : "OFF");
-#endif
+    LOG_DEBUG("Power", "Screen power %s", enable ? "ON" : "OFF");
 
     return POWER_OK;
 }

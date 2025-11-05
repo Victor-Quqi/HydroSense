@@ -5,6 +5,7 @@
 
 #include "sensor_manager.h"
 #include "power_manager.h"
+#include "managers/log_manager.h"
 #include "hal/hal_config.h"
 #include "hal/hal_adc.h"
 #include <Arduino.h>
@@ -26,7 +27,7 @@ static inline sensor_result_t validate_pointer(void* ptr) {
 sensor_result_t sensor_manager_init() {
     hal_adc_init();
     is_initialized = true;
-    // TODO: 添加日志初始化成功消息
+    LOG_INFO("Sensor", "Sensor manager initialized");
     return SENSOR_OK;
 }
 
@@ -65,6 +66,7 @@ sensor_result_t sensor_manager_get_humidity(float* p_humidity) {
 
     // 1. 打开传感器电源
     if (power_sensor_enable(true) != POWER_OK) {
+        LOG_ERROR("Sensor", "Failed to enable sensor power");
         return SENSOR_ERROR_POWER_FAILED;
     }
 
@@ -77,13 +79,16 @@ sensor_result_t sensor_manager_get_humidity(float* p_humidity) {
 
     // 检查ADC读取是否成功
     if (!adc_success) {
+        LOG_ERROR("Sensor", "ADC read failed for humidity sensor");
+        // 尝试关闭电源，即使ADC读取失败
+        power_sensor_enable(false);
         return SENSOR_ERROR_READ_FAILED;
     }
 
     // 4. 关闭传感器电源
     if (power_sensor_enable(false) != POWER_OK) {
         // 即使关闭失败，也返回成功，因为数据已经读到
-        // TODO: 添加电源关闭失败的警告日志
+        LOG_WARN("Sensor", "Failed to disable sensor power after reading");
     }
 
     // 5. 转换为湿度值（直接返回ADC值，待后续标定）
@@ -105,6 +110,7 @@ sensor_result_t sensor_manager_get_battery_voltage(float* p_voltage) {
 
     // 检查ADC读取是否成功
     if (!adc_success) {
+        LOG_ERROR("Sensor", "ADC read failed for battery voltage");
         return SENSOR_ERROR_READ_FAILED;
     }
 
@@ -114,6 +120,7 @@ sensor_result_t sensor_manager_get_battery_voltage(float* p_voltage) {
 
     // 电压范围合理性检查（锂电池正常范围：2.7V - 4.3V）
     if (*p_voltage < 2.0f || *p_voltage > 5.0f) {
+        LOG_WARN("Sensor", "Battery voltage reading (%.2fV) is out of reasonable range", *p_voltage);
         return SENSOR_ERROR_READ_FAILED;
     }
 
