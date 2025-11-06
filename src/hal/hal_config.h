@@ -20,7 +20,8 @@ constexpr bool POWER_OFF = HIGH;
 #define PIN_POWER_GATE_DISPLAY 11  // 控制墨水屏的电源
 
 // --- 2. 执行器控制 (Actuators) ---
-#define PIN_ACTUATOR_PUMP      13  // 水泵驱动信号
+#define PIN_ACTUATOR_PUMP      12  // 水泵驱动信号
+#define PIN_ACTUATOR_VALVE     13  // 电磁阀驱动信号
 
 // --- 3. 传感器与模拟输入 (Sensors & Analog) ---
 #define PIN_SENSOR_HUMIDITY      4   // 土壤湿度传感器信号输入

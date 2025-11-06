@@ -155,26 +155,48 @@ void handle_read(const char* args) {
 
 /**
  * @brief 处理 "pump" 命令
- * @param args 格式: "run <duration_ms>"
+ * @param args 格式: "run <duty_cycle> <duration_ms>"
  */
 void handle_pump(const char* args) {
-    char action[10]; // Buffer for action string
+    char action[10];
+    int duty_cycle;
     uint32_t duration;
-    int items = sscanf(args, "%9s %lu", action, &duration);
+    int items = sscanf(args, "%9s %d %lu", action, &duty_cycle, &duration);
 
-    if (items != 2 || strcmp(action, "run") != 0) {
-        Serial.println("Error: Invalid arguments. Usage: pump run <duration_ms>");
+    if (items != 3 || strcmp(action, "run") != 0) {
+        Serial.println("Error: Invalid arguments. Usage: pump run <duty_cycle> <duration_ms>");
         return;
     }
 
-    if (duration == 0 || duration > 30000) { // 限制最大运行时长为30秒
+    if (duty_cycle < 0 || duty_cycle > 255) {
+        Serial.println("Error: Duty cycle must be between 0 and 255.");
+        return;
+    }
+
+    if (duration == 0 || duration > 30000) {
         Serial.println("Error: Duration must be between 1 and 30000 ms.");
         return;
     }
 
-    Serial.printf("Running pump for %lu ms...\r\n", duration);
-    actuator_manager_run_pump(duration);
+    Serial.printf("Running pump with duty cycle %d for %lu ms...\r\n", duty_cycle, duration);
+    actuator_manager_run_pump((uint8_t)duty_cycle, duration);
     Serial.println("Pump command finished.");
+}
+
+/**
+ * @brief 处理 "valve" 命令
+ * @param args 格式: "<on|off>"
+ */
+void handle_valve(const char* args) {
+    if (strcmp(args, "on") == 0) {
+        actuator_manager_set_valve(true);
+        Serial.println("Valve opened.");
+    } else if (strcmp(args, "off") == 0) {
+        actuator_manager_set_valve(false);
+        Serial.println("Valve closed.");
+    } else {
+        Serial.println("Error: Invalid arguments. Usage: valve <on|off>");
+    }
 }
 
 
@@ -183,7 +205,8 @@ void handle_pump(const char* args) {
 static const CommandRegistryEntry hal_commands[] = {
     {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
     {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"},
-    {"pump", handle_pump, "Control the water pump. Usage: pump run <duration_ms>"}
+    {"pump", handle_pump, "Run pump. Usage: pump run <duty_cycle> <duration_ms>"},
+    {"valve", handle_valve, "Control solenoid valve. Usage: valve <on|off>"}
 };
 
 // --- 公共 API ---

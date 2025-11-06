@@ -6,48 +6,92 @@
 #include "actuator_manager.h"
 #include "power_manager.h"
 #include "hal/hal_gpio.h"
+#include "hal/hal_ledc.h"
 #include "hal/hal_config.h"
 #include "log_manager.h"
 #include <Arduino.h>
 
+#define PUMP_LEDC_CHANNEL 0
+
+// 内部状态，用于智能电源管理
+static bool is_pump_running = false;
+static bool is_valve_open = false;
+
+// 私有辅助函数，用于管理12V电源
+static void ensure_12v_power() {
+    if (!power_pump_module_is_enabled()) {
+        LOG_DEBUG("Actuator", "12V power is off. Turning on...");
+        power_result_t result = power_pump_module_enable(true);
+        if (result != POWER_OK) {
+            LOG_ERROR("Actuator", "Failed to enable 12V boost module!");
+        }
+        delay(50); // 等待电源稳定
+    }
+}
+
+static void shutdown_12v_if_idle() {
+    if (!is_pump_running && !is_valve_open) {
+        LOG_DEBUG("Actuator", "All actuators idle. Turning off 12V power.");
+        power_result_t result = power_pump_module_enable(false);
+        if (result != POWER_OK) {
+            LOG_ERROR("Actuator", "Failed to disable 12V boost module.");
+        }
+    }
+}
+
 void actuator_manager_init()
 {
-    // 初始化时确保水泵控制引脚为输出模式且为低电平
+    // 初始化电磁阀引脚
+    hal_gpio_pin_mode(PIN_ACTUATOR_VALVE, OUTPUT);
+    hal_gpio_write(PIN_ACTUATOR_VALVE, HIGH); // 默认关闭 (反相逻辑)
+
+    // 初始化水泵PWM通道，但不附加引脚
+    hal_ledc_init(PIN_ACTUATOR_PUMP, PUMP_LEDC_CHANNEL);
+    // 将水泵引脚初始化为普通GPIO输出，并设为高电平（安全状态）
     hal_gpio_pin_mode(PIN_ACTUATOR_PUMP, OUTPUT);
-    hal_gpio_write(PIN_ACTUATOR_PUMP, LOW);
+    hal_gpio_write(PIN_ACTUATOR_PUMP, HIGH);
+
     LOG_INFO("Actuator", "Actuator manager initialized.");
 }
 
-void actuator_manager_run_pump(uint32_t duration_ms)
+void actuator_manager_set_valve(bool is_open)
 {
-    LOG_INFO("Actuator", "Running pump for %d ms.", duration_ms);
-
-    // 1. 打开12V升压模块电源
-    power_result_t result = power_pump_module_enable(true);
-    if (result != POWER_OK)
-    {
-        LOG_ERROR("Actuator", "Failed to enable 12V boost module. Aborting pump run.");
-        return;
-    }
-
-    // 短暂延时，确保电源稳定
-    delay(50);
-
-    // 2. 打开水泵
-    hal_gpio_write(PIN_ACTUATOR_PUMP, HIGH);
-
-    // 3. 等待指定时长
-    delay(duration_ms);
-
-    // 4. 关闭水泵
-    hal_gpio_write(PIN_ACTUATOR_PUMP, LOW);
-
-    // 5. 关闭12V升压模块电源
-    result = power_pump_module_enable(false);
-    if (result != POWER_OK)
-    {
-        LOG_ERROR("Actuator", "Failed to disable 12V boost module.");
+    LOG_INFO("Actuator", "Setting valve to %s.", is_open ? "OPEN" : "CLOSED");
+    
+    if (is_open) {
+        ensure_12v_power();
+        hal_gpio_write(PIN_ACTUATOR_VALVE, LOW); // 打开 (反相逻辑)
+    } else {
+        hal_gpio_write(PIN_ACTUATOR_VALVE, HIGH); // 关闭 (反相逻辑)
     }
     
+    is_valve_open = is_open;
+    shutdown_12v_if_idle();
+}
+
+void actuator_manager_run_pump(uint8_t duty_cycle, uint32_t duration_ms)
+{
+    LOG_INFO("Actuator", "Running pump at %d/255 power for %d ms.", duty_cycle, duration_ms);
+
+    ensure_12v_power();
+    is_pump_running = true;
+
+    // 1. 将引脚附加到LEDC外设
+    ledcAttachPin(PIN_ACTUATOR_PUMP, PUMP_LEDC_CHANNEL);
+
+    // 2. 运行PWM (注意：由于NPN三极管反相，占空比需要反转)
+    uint8_t inverted_duty = 255 - duty_cycle;
+    hal_ledc_set_duty(PUMP_LEDC_CHANNEL, inverted_duty);
+    delay(duration_ms);
+    hal_ledc_set_duty(PUMP_LEDC_CHANNEL, 255); // 确保PWM输出为0V，让三极管截止
+
+    // 3. 将引脚与LEDC外设分离
+    ledcDetachPin(PIN_ACTUATOR_PUMP);
+
+    // 4. 恢复引脚为高电平安全状态
+    hal_gpio_write(PIN_ACTUATOR_PUMP, HIGH);
+
+    is_pump_running = false;
     LOG_INFO("Actuator", "Pump run finished.");
+    shutdown_12v_if_idle();
 }
