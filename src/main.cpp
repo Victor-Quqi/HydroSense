@@ -59,6 +59,7 @@ void loop() {
   // 主循环
 
   #ifdef TEST_MODE
+    actuator_manager_loop();
     // 测试模式处理 - 禁用深度睡眠，持续响应CLI
     test_cli_loop();
   #else

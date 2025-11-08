@@ -14,7 +14,7 @@
  * @param pin_num 要输出PWM信号的GPIO引脚号
  * @param channel LEDC通道 (0-15)
  */
-void hal_ledc_init(uint8_t pin_num, uint8_t channel);
+void hal_ledc_init(uint8_t channel);
 
 /**
  * @brief 设置LEDC通道的占空比
@@ -22,5 +22,18 @@ void hal_ledc_init(uint8_t pin_num, uint8_t channel);
  * @param duty_cycle 占空比 (0-255)
  */
 void hal_ledc_set_duty(uint8_t channel, uint8_t duty_cycle);
+
+/**
+ * @brief 将LEDC通道附加到GPIO引脚
+ * @param pin_num GPIO引脚号
+ * @param channel LEDC通道 (0-15)
+ */
+void hal_ledc_attach_pin(uint8_t pin_num, uint8_t channel);
+
+/**
+ * @brief 将GPIO引脚与LEDC通道分离
+ * @param pin_num GPIO引脚号
+ */
+void hal_ledc_detach_pin(uint8_t pin_num);
 
 #endif // HAL_LEDC_H

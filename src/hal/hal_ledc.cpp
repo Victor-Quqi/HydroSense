@@ -10,13 +10,22 @@
 #define LEDC_TIMER_BIT 8
 #define LEDC_BASE_FREQ 1000
 
-void hal_ledc_init(uint8_t pin_num, uint8_t channel)
+void hal_ledc_init(uint8_t channel)
 {
     ledcSetup(channel, LEDC_BASE_FREQ, LEDC_TIMER_BIT);
-    ledcAttachPin(pin_num, channel);
 }
 
 void hal_ledc_set_duty(uint8_t channel, uint8_t duty_cycle)
 {
     ledcWrite(channel, duty_cycle);
+}
+
+void hal_ledc_attach_pin(uint8_t pin_num, uint8_t channel)
+{
+    ledcAttachPin(pin_num, channel);
+}
+
+void hal_ledc_detach_pin(uint8_t pin_num)
+{
+    ledcDetachPin(pin_num);
 }

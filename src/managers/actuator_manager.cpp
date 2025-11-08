@@ -13,10 +13,12 @@
 
 #define PUMP_LEDC_CHANNEL 0
 
-// 内部状态，用于智能电源管理
+// 内部状态
 static bool is_pump_running = false;
+static uint32_t pump_start_time = 0;
+static uint32_t pump_duration_ms = 0;
 
-// 私有辅助函数，用于管理12V电源
+// 私有辅助函数
 static void ensure_12v_power() {
     if (!power_pump_module_is_enabled()) {
         LOG_DEBUG("Actuator", "12V power is off. Turning on...");
@@ -40,8 +42,8 @@ static void shutdown_12v_if_idle() {
 
 void actuator_manager_init()
 {
-    // 初始化水泵PWM通道，但不附加引脚
-    hal_ledc_init(PIN_ACTUATOR_PUMP, PUMP_LEDC_CHANNEL);
+    // 初始化水泵PWM通道
+    hal_ledc_init(PUMP_LEDC_CHANNEL);
     // 将水泵引脚初始化为普通GPIO输出，并设为高电平（安全状态）
     hal_gpio_pin_mode(PIN_ACTUATOR_PUMP, OUTPUT);
     hal_gpio_write(PIN_ACTUATOR_PUMP, HIGH);
@@ -49,29 +51,57 @@ void actuator_manager_init()
     LOG_INFO("Actuator", "Actuator manager initialized.");
 }
 
-void actuator_manager_run_pump(uint8_t duty_cycle, uint32_t duration_ms)
+void actuator_manager_start_pump(uint8_t duty_cycle)
 {
-    LOG_INFO("Actuator", "Running pump at %d/255 power for %d ms.", duty_cycle, duration_ms);
+    if (is_pump_running) {
+        LOG_WARN("Actuator", "Pump is already running.");
+        return;
+    }
+    LOG_INFO("Actuator", "Starting pump at %d/255 power.", duty_cycle);
 
     ensure_12v_power();
     is_pump_running = true;
 
-    // 1. 将引脚附加到LEDC外设
-    ledcAttachPin(PIN_ACTUATOR_PUMP, PUMP_LEDC_CHANNEL);
-
-    // 2. 运行PWM (注意：由于NPN三极管反相，占空比需要反转)
+    hal_ledc_attach_pin(PIN_ACTUATOR_PUMP, PUMP_LEDC_CHANNEL);
+    
+    // 注意：由于NPN三极管反相，占空比需要反转
     uint8_t inverted_duty = 255 - duty_cycle;
     hal_ledc_set_duty(PUMP_LEDC_CHANNEL, inverted_duty);
-    delay(duration_ms);
-    hal_ledc_set_duty(PUMP_LEDC_CHANNEL, 255); // 确保PWM输出为0V，让三极管截止
+}
 
-    // 3. 将引脚与LEDC外设分离
-    ledcDetachPin(PIN_ACTUATOR_PUMP);
+void actuator_manager_stop_pump()
+{
+    if (!is_pump_running) {
+        return;
+    }
+    LOG_INFO("Actuator", "Stopping pump.");
 
-    // 4. 恢复引脚为高电平安全状态
-    hal_gpio_write(PIN_ACTUATOR_PUMP, HIGH);
+    hal_ledc_set_duty(PUMP_LEDC_CHANNEL, 255); // 确保PWM输出为0V
+    hal_ledc_detach_pin(PIN_ACTUATOR_PUMP);
+    hal_gpio_write(PIN_ACTUATOR_PUMP, HIGH); // 恢复安全状态
 
     is_pump_running = false;
-    LOG_INFO("Actuator", "Pump run finished.");
+    pump_duration_ms = 0; // 清除计时
     shutdown_12v_if_idle();
+}
+
+void actuator_manager_run_pump_for(uint8_t duty_cycle, uint32_t duration_ms)
+{
+    if (is_pump_running) {
+        LOG_WARN("Actuator", "Pump is already running. Ignoring new timed run request.");
+        return;
+    }
+    pump_duration_ms = duration_ms;
+    pump_start_time = millis();
+    actuator_manager_start_pump(duty_cycle);
+}
+
+void actuator_manager_loop()
+{
+    if (is_pump_running && pump_duration_ms > 0) {
+        if (millis() - pump_start_time >= pump_duration_ms) {
+            LOG_INFO("Actuator", "Timed run finished.");
+            actuator_manager_stop_pump();
+        }
+    }
 }

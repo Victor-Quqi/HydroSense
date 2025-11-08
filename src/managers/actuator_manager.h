@@ -17,10 +17,29 @@
 void actuator_manager_init();
 
 /**
- * @brief 运行水泵指定时长和功率
+ * @brief 启动水泵
+ * @param duty_cycle 功率 (0-255)
+ */
+void actuator_manager_start_pump(uint8_t duty_cycle);
+
+/**
+ * @brief 停止水泵
+ */
+void actuator_manager_stop_pump();
+
+/**
+ * @brief 运行水泵指定时长 (非阻塞)
+ * @details 此函数会立即返回。水泵将在后台运行指定时间后自动停止。
+ *          需要周期性调用 actuator_manager_loop() 来驱动此逻辑。
  * @param duty_cycle 功率 (0-255)
  * @param duration_ms 运行的时长 (毫秒)
  */
-void actuator_manager_run_pump(uint8_t duty_cycle, uint32_t duration_ms);
+void actuator_manager_run_pump_for(uint8_t duty_cycle, uint32_t duration_ms);
+
+/**
+ * @brief 执行器管理器的循环函数
+ * @details 该函数应在主循环中被周期性调用，以处理非阻塞逻辑。
+ */
+void actuator_manager_loop();
 
 #endif // ACTUATOR_MANAGER_H
