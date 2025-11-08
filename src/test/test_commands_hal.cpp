@@ -183,21 +183,6 @@ void handle_pump(const char* args) {
     Serial.println("Pump command finished.");
 }
 
-/**
- * @brief 处理 "valve" 命令
- * @param args 格式: "<on|off>"
- */
-void handle_valve(const char* args) {
-    if (strcmp(args, "on") == 0) {
-        actuator_manager_set_valve(true);
-        Serial.println("Valve opened.");
-    } else if (strcmp(args, "off") == 0) {
-        actuator_manager_set_valve(false);
-        Serial.println("Valve closed.");
-    } else {
-        Serial.println("Error: Invalid arguments. Usage: valve <on|off>");
-    }
-}
 
 
 // --- 命令定义 ---
@@ -206,7 +191,6 @@ static const CommandRegistryEntry hal_commands[] = {
     {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
     {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"},
     {"pump", handle_pump, "Run pump. Usage: pump run <duty_cycle> <duration_ms>"},
-    {"valve", handle_valve, "Control solenoid valve. Usage: valve <on|off>"}
 };
 
 // --- 公共 API ---

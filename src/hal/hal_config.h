@@ -21,7 +21,7 @@ constexpr bool POWER_OFF = HIGH;
 
 // --- 2. 执行器控制 (Actuators) ---
 #define PIN_ACTUATOR_PUMP      12  // 水泵驱动信号
-#define PIN_ACTUATOR_VALVE     13  // 电磁阀驱动信号
+// #define PIN_ACTUATOR_VALVE     13  // 电磁阀驱动信号 (原型中因供电不足, 暂时禁用)
 
 // --- 3. 传感器与模拟输入 (Sensors & Analog) ---
 #define PIN_SENSOR_HUMIDITY      4   // 土壤湿度传感器信号输入
