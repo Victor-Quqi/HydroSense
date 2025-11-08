@@ -21,11 +21,31 @@
 #include "managers/log_manager.h"
 #include "managers/actuator_manager.h"
 
+#ifdef TEST_MODE
+/**
+ * @brief 初始化测试模式相关的模块
+ * @details 封装所有仅在测试模式下运行的初始化代码
+ */
+static void test_mode_setup() {
+  // 在测试模式下，尽早初始化串口以捕获所有启动日志
+  Serial.begin(115200);
+
+  // 初始化核心测试模块
+  test_mode_init();
+  test_cli_init();
+  test_registry_init();
+
+  // 注册所有测试命令
+  test_commands_core_init();
+  test_commands_hal_init();
+  test_commands_log_init();
+}
+#endif
+
 void setup() {
   // 系统初始化
   #ifdef TEST_MODE
-    // 在测试模式下，尽早初始化串口以捕获所有启动日志
-    Serial.begin(115200);
+    test_mode_setup();
   #endif
 
   log_manager_init();
@@ -33,25 +53,11 @@ void setup() {
   sensor_manager_init();
   actuator_manager_init();
 
-#ifdef TEST_MODE
-  if (power_init_result != POWER_OK) {
-    // 此时日志系统已可用
-    LOG_ERROR("Main", "Power manager initialization failed: %d", power_init_result);
-  }
-#endif
-
   #ifdef TEST_MODE
-    // --- 测试模式初始化 ---
-    // 1. 初始化核心测试模块 (物理接口已初始化)
-    test_mode_init();
-    test_cli_init();
-    test_registry_init();
-
-    // 3. 注册所有测试命令
-    test_commands_core_init();
-    test_commands_hal_init();
-    test_commands_log_init();
-
+    if (power_init_result != POWER_OK) {
+      // 此时日志系统已可用
+      LOG_ERROR("Main", "Power manager initialization failed: %d", power_init_result);
+    }
   #endif
 }
 

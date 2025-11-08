@@ -7,7 +7,6 @@
 #include "hal/hal_config.h"
 #include "hal/hal_gpio.h"
 #include "managers/log_manager.h"
-#include <Arduino.h>
 
 // --- 私有状态变量 ---
 static bool is_sensor_powered = false;
@@ -118,15 +117,4 @@ bool power_screen_is_enabled() {
     return is_screen_powered;
 }
 
-/* ========== 兼容性函数 (旧命名) ========== */
-bool is_sensor_power_on() {
-    return power_sensor_is_enabled();
-}
-
-bool is_pump_module_power_on() {
-    return power_pump_module_is_enabled();
-}
-
-bool is_screen_power_on() {
-    return power_screen_is_enabled();
-}
+/* 兼容性函数已移除 */

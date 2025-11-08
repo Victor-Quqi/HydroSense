@@ -65,26 +65,6 @@ bool power_pump_module_is_enabled();
  */
 bool power_screen_is_enabled();
 
-/* ========== 兼容性函数 (保留旧命名) ========== */
-/**
- * @brief 查询传感器电源状态 (旧命名，兼容性保留)
- * @deprecated 请使用 power_sensor_is_enabled()
- * @return bool true: 已打开, false: 已关闭
- */
-bool is_sensor_power_on();
-
-/**
- * @brief 查询12V升压模块电源状态 (旧命名，兼容性保留)
- * @deprecated 请使用 power_pump_module_is_enabled()
- * @return bool true: 已打开, false: 已关闭
- */
-bool is_pump_module_power_on();
-
-/**
- * @brief 查询墨水屏电源状态 (旧命名，兼容性保留)
- * @deprecated 请使用 power_screen_is_enabled()
- * @return bool true: 已打开, false: 已关闭
- */
-bool is_screen_power_on();
+/* 兼容性函数已移除 */
 
 #endif // POWER_MANAGER_H
