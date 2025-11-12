@@ -8,6 +8,7 @@
 #include "managers/power_manager.h"
 #include "managers/sensor_manager.h"
 #include "managers/actuator_manager.h"
+#include "ui/display_manager.h"
 #include "data/data_models.h"
 #include <Arduino.h>
 #include <string.h>
@@ -158,12 +159,80 @@ void handle_pump(const char* args) {
 }
 
 
+// 显示相关命令处理
+void handle_display(const char* args) {
+    char action[MAX_ACTION_NAME_LEN] = {0};
+
+    if (args == nullptr) args = "";
+    while (*args == ' ') ++args; // 跳过前导空格
+
+    int items = sscanf(args, "%9s", action);
+    if (items != 1) {
+        Serial.println("Error: Invalid arguments. Usage: display <init|clear|text <message>|refresh|sleep>");
+        return;
+    }
+
+    if (strcmp(action, "init") == 0) {
+        display_result_t r = display_manager_init();
+        Serial.printf("Display init: %s (%d)\r\n", r == DISPLAY_OK ? "OK" : "FAIL", r);
+        return;
+    }
+
+    // 其他操作前确保已初始化
+    if (!display_manager_is_initialized()) {
+        display_result_t r = display_manager_init();
+        if (r != DISPLAY_OK) {
+            Serial.printf("Error: display init failed (%d)\r\n", r);
+            return;
+        }
+    }
+
+    if (strcmp(action, "clear") == 0) {
+        (void)display_manager_clear();
+        Serial.println("Display cleared (buffer only).");
+        return;
+    } else if (strcmp(action, "text") == 0) {
+        // 提取 text 后的剩余部分作为消息
+        const char* content = strchr(args, ' ');
+        if (!content) {
+            Serial.println("Error: Missing text. Usage: display text <message>");
+            return;
+        }
+        content++; // 跳过空格
+
+        String msg = String(content);
+        msg.trim();
+        // 去掉首尾引号（如果存在）
+        if (msg.length() >= 2 && msg.startsWith("\"") && msg.endsWith("\"")) {
+            msg = msg.substring(1, msg.length() - 1);
+        }
+
+        (void)display_manager_clear();
+        (void)display_manager_draw_text(msg.c_str(), 10, 40);
+        (void)display_manager_refresh(true); // 全局刷新，确保可见
+        Serial.println("Display text updated.");
+        return;
+    } else if (strcmp(action, "refresh") == 0) {
+        (void)display_manager_refresh(true);
+        Serial.println("Display refreshed (full).");
+        return;
+    } else if (strcmp(action, "sleep") == 0) {
+        (void)display_manager_sleep();
+        Serial.println("Display hibernated.");
+        return;
+    } else {
+        Serial.println("Error: Unknown action. Use: init|clear|text|refresh|sleep");
+        return;
+    }
+}
+
 // --- 命令定义 ---
 
 static const CommandRegistryEntry hal_commands[] = {
     {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
     {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"},
-    {"pump", handle_pump, "Run pump. Usage: pump run <duty_cycle> <duration_ms>"}
+    {"pump", handle_pump, "Run pump. Usage: pump run <duty_cycle> <duration_ms>"},
+    {"display", handle_display, "Display ops. Usage: display <init|clear|text <msg>|refresh|sleep>"}
 };
 
 // --- 公共 API ---
