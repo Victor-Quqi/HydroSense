@@ -43,14 +43,14 @@ constexpr bool POWER_OFF = HIGH;
 // --- 4. 用户输入 (User Inputs) ---
 #define PIN_ENCODER_A          1
 #define PIN_ENCODER_B          2
-#define PIN_ENCODER_SW         3
+#define PIN_ENCODER_SW         21
 #define PIN_MODE_SWITCH_A      5
 #define PIN_MODE_SWITCH_B      6
 
 // --- 5. 显示屏 SPI 接口 (Display SPI) ---
-#define PIN_DISPLAY_SCK        36
-#define PIN_DISPLAY_MOSI       35
-#define PIN_DISPLAY_CS         37
+#define PIN_DISPLAY_SCK        40
+#define PIN_DISPLAY_MOSI       41
+#define PIN_DISPLAY_CS         42
 #define PIN_DISPLAY_DC         38
 #define PIN_DISPLAY_RST        14
 #define PIN_DISPLAY_BUSY       15
