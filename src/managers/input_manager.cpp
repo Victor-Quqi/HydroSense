@@ -10,8 +10,9 @@
 #include <Arduino.h>
 
 // --- 旋转编码器状态变量 ---
-static int last_encoder_a_state;
-static int last_encoder_b_state;
+static uint8_t last_encoder_state = 0;
+static int encoder_counter = 0;
+#define ENCODER_THRESHOLD 4 // 可调参数：累积多少步才算一次有效旋转
 static unsigned long last_debounce_time = 0;
 static const unsigned long debounce_delay = 50; // ms
 
@@ -32,8 +33,7 @@ void input_manager_init() {
     hal_gpio_pin_mode(PIN_ENCODER_SW, INPUT_PULLUP);
 
     // 初始化编码器初始状态
-    last_encoder_a_state = digitalRead(PIN_ENCODER_A);
-    last_encoder_b_state = digitalRead(PIN_ENCODER_B);
+    last_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
 }
 
 system_mode_t input_manager_get_mode() {
@@ -59,20 +59,24 @@ system_mode_t input_manager_get_mode() {
 }
 
 void input_manager_loop() {
-    // --- 编码器旋转处理 ---
-    int encoder_a_state = digitalRead(PIN_ENCODER_A);
-    int encoder_b_state = digitalRead(PIN_ENCODER_B);
+    // --- 编码器旋转处理 (积分-阈值算法) ---
+    static const int8_t lookup_table[] = { 0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0 };
+    
+    uint8_t current_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
 
-    if ((encoder_a_state != last_encoder_a_state) || (encoder_b_state != last_encoder_b_state)) {
-        if (encoder_a_state == LOW && last_encoder_a_state == HIGH) {
-            if (encoder_b_state == LOW) {
-                LOG_DEBUG("Input", "Encoder rotated: CCW"); // 逆时针
-            } else {
-                LOG_DEBUG("Input", "Encoder rotated: CW");  // 顺时针
-            }
+    if (current_encoder_state != last_encoder_state) {
+        int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
+        encoder_counter += direction;
+        
+        if (encoder_counter >= ENCODER_THRESHOLD) {
+            LOG_DEBUG("Input", "Encoder rotated: CW");
+            encoder_counter = 0;
+        } else if (encoder_counter <= -ENCODER_THRESHOLD) {
+            LOG_DEBUG("Input", "Encoder rotated: CCW");
+            encoder_counter = 0;
         }
-        last_encoder_a_state = encoder_a_state;
-        last_encoder_b_state = encoder_b_state;
+        
+        last_encoder_state = current_encoder_state;
     }
 
     // --- 编码器按键处理 (带消抖) ---
