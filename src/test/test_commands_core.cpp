@@ -23,7 +23,7 @@ void handle_echo(const char* args) {
 
 // 定义此模块提供的所有命令
 static const CommandRegistryEntry core_commands[] = {
-    {"echo", handle_echo, "Echoes the provided string back"}
+    {"echo", handle_echo, "Echoes the provided string back. Usage: echo <text>"}
 };
 
 // --- 公共 API ---

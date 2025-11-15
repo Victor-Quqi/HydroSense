@@ -21,6 +21,7 @@
 #include "managers/log_manager.h"
 #include "managers/actuator_manager.h"
 #include "ui/ui_manager.h"
+#include "managers/input_manager.h"
 
 #ifdef TEST_MODE
 /**
@@ -53,6 +54,7 @@ void setup() {
   power_result_t power_init_result = power_manager_init();
   sensor_manager_init();
   actuator_manager_init();
+  input_manager_init();
 
   #ifdef TEST_MODE
     if (power_init_result != POWER_OK) {
@@ -68,6 +70,7 @@ void loop() {
   #ifdef TEST_MODE
     actuator_manager_loop();
     ui_manager_loop();
+    input_manager_loop();
     // 测试模式处理 - 禁用深度睡眠，持续响应CLI
     test_cli_loop();
   #else

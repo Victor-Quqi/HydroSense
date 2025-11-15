@@ -11,6 +11,7 @@
 #include "ui/display_manager.h"
 #include "ui/ui_manager.h"
 #include "data/data_models.h"
+#include "managers/input_manager.h"
 #include <Arduino.h>
 #include <string.h>
 
@@ -238,13 +239,47 @@ void handle_display(const char* args) {
     }
 }
 
+/**
+ * @brief 处理 "input" 命令
+ * @param args 格式: "get_mode"
+ */
+void handle_input(const char* args) {
+    if (strcmp(args, "get_mode") == 0) {
+        system_mode_t mode = input_manager_get_mode();
+        const char* mode_str;
+        switch (mode) {
+            case SYSTEM_MODE_OFF:
+                mode_str = "OFF";
+                break;
+            case SYSTEM_MODE_RUN:
+                mode_str = "RUN";
+                break;
+            case SYSTEM_MODE_INTERACTIVE:
+                mode_str = "INTERACTIVE";
+                break;
+            default:
+                mode_str = "UNKNOWN";
+                break;
+        }
+        Serial.printf("Current system mode: %s\r\n", mode_str);
+    } else {
+        Serial.println("Error: Invalid arguments. Usage: input get_mode");
+    }
+}
+
 // --- 命令定义 ---
 
 static const CommandRegistryEntry hal_commands[] = {
-    {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
-    {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"},
-    {"pump", handle_pump, "Run pump. Usage: pump run <duty_cycle> <duration_ms>"},
-    {"display", handle_display, "Display ops. Usage: display <...|lvgl_test>"}
+    {"power", handle_power, "Controls power gates. Usage: power <module> <on|off>\r\n"
+                           "  - module: sensor, boost12v, screen"},
+    {"read", handle_read, "Reads sensor data. Usage: read <source>\r\n"
+                         "  - source: all, humidity, battery"},
+    {"pump", handle_pump, "Runs the water pump. Usage: pump run <duty> <ms>\r\n"
+                         "  - duty: 0-255 (PWM duty cycle)\r\n"
+                         "  - ms: 1-30000 (duration in milliseconds)"},
+    {"display", handle_display, "Controls the display. Usage: display <action> [params]\r\n"
+                               "  - actions: init, text \"msg\", sleep, lvgl_test"},
+    {"input", handle_input, "Gets input device status. Usage: input get_mode"}
 };
 
 // --- 公共 API ---
