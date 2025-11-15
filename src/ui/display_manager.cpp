@@ -67,8 +67,8 @@ display_result_t display_manager_init() {
     s_display.setTextColor(GxEPD_BLACK);
 
     // 首次全屏清屏，建立干净基线，避免局部刷新伪影
-    s_display.fillScreen(GxEPD_WHITE);
-    s_display.display(false); // false = 全局刷新
+    // s_display.fillScreen(GxEPD_WHITE);
+    // s_display.display(false); // 注释掉：LVGL会立即接管并刷新，此步骤冗余
 
     s_initialized = true;
     LOG_INFO("Display", "Display initialized");
@@ -119,3 +119,22 @@ display_result_t display_manager_sleep() {
 }
 
 } // extern "C"
+void display_manager_flush_lvgl(int16_t x, int16_t y, int16_t width, int16_t height, const uint8_t* color_p) {
+    if (!s_initialized) {
+        // 在调用刷新之前，LVGL会确保显示器已初始化
+        return;
+    }
+
+    // 逐像素绘制，这是最通用的LVGL桥接方法
+    int16_t i, j;
+    for (j = 0; j < height; j++) {
+        for (i = 0; i < width; i++) {
+            if (*color_p) {
+                s_display.drawPixel(x + i, y + j, GxEPD_BLACK);
+            } else {
+                s_display.drawPixel(x + i, y + j, GxEPD_WHITE);
+            }
+            color_p++;
+        }
+    }
+}

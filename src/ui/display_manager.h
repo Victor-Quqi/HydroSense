@@ -65,6 +65,16 @@ display_result_t display_manager_refresh(bool full_refresh);
  * @brief 将显示器置于深度睡眠以达成近零功耗
  */
 display_result_t display_manager_sleep();
+/**
+ * @brief LVGL 'flush_cb' 桥接函数
+ * @details 将LVGL渲染的缓冲区内容刷新到屏幕的指定区域。
+ * @param x 区域左上角X坐标
+ * @param y 区域左上角Y坐标
+ * @param width 区域宽度
+ * @param height 区域高度
+ * @param color_p 指向颜色缓冲区的指针
+ */
+void display_manager_flush_lvgl(int16_t x, int16_t y, int16_t width, int16_t height, const uint8_t* color_p);
 
 #ifdef __cplusplus
 } // extern "C"

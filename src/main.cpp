@@ -20,6 +20,7 @@
 #include "managers/sensor_manager.h"
 #include "managers/log_manager.h"
 #include "managers/actuator_manager.h"
+#include "ui/ui_manager.h"
 
 #ifdef TEST_MODE
 /**
@@ -66,6 +67,7 @@ void loop() {
 
   #ifdef TEST_MODE
     actuator_manager_loop();
+    ui_manager_loop();
     // 测试模式处理 - 禁用深度睡眠，持续响应CLI
     test_cli_loop();
   #else

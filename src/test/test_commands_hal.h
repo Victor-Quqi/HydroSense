@@ -8,6 +8,7 @@
 
 #ifdef TEST_MODE
 
+void test_commands_hal_init();
 /**
  * @brief 初始化HAL命令模块并注册其命令
  */

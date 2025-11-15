@@ -9,6 +9,7 @@
 #include "managers/sensor_manager.h"
 #include "managers/actuator_manager.h"
 #include "ui/display_manager.h"
+#include "ui/ui_manager.h"
 #include "data/data_models.h"
 #include <Arduino.h>
 #include <string.h>
@@ -222,8 +223,17 @@ void handle_display(const char* args) {
         (void)display_manager_sleep();
         Serial.println("Display hibernated.");
         return;
+    } else if (strcmp(action, "lvgl_test") == 0) {
+        ui_result_t r = ui_manager_init();
+        if (r != UI_OK) {
+            Serial.printf("Error: ui_manager_init failed (%d)\r\n", r);
+            return;
+        }
+        ui_manager_show_test_screen();
+        Serial.println("LVGL test screen displayed.");
+        return;
     } else {
-        Serial.println("Error: Unknown action. Use: init|clear|text|refresh|sleep");
+        Serial.println("Error: Unknown action. Use: init|clear|text|refresh|sleep|lvgl_test");
         return;
     }
 }
@@ -234,7 +244,7 @@ static const CommandRegistryEntry hal_commands[] = {
     {"power", handle_power, "Control power gates. Usage: power <sensor|boost12v|screen> <on|off>"},
     {"read", handle_read, "Read sensor data. Usage: read <all|humidity|battery>"},
     {"pump", handle_pump, "Run pump. Usage: pump run <duty_cycle> <duration_ms>"},
-    {"display", handle_display, "Display ops. Usage: display <init|clear|text <msg>|refresh|sleep>"}
+    {"display", handle_display, "Display ops. Usage: display <...|lvgl_test>"}
 };
 
 // --- 公共 API ---
