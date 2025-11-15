@@ -36,19 +36,42 @@ def run_test(port, timeout, command, delay):
         # --- 主动执行模式 ---
         print(f"模式: 主动执行 (命令: '{command}', 超时: {timeout}s)")
         
-        # 可选的初始延迟
-        # 增加一个固定的启动延迟，确保设备准备就绪
-        # 这个问题在测试中发现：即使有 --delay，也可能因为设备启动慢而错过命令
+        # 将命令字符串按分号分割成列表
+        commands = [c.strip() for c in command.split(';') if c.strip()]
+        
         print("等待 2s 以确保设备初始化完成...")
         time.sleep(2)
 
         if delay > 0:
             print(f"执行额外延迟 {delay}s...")
             time.sleep(delay)
+
+        # 循环执行所有命令
+        for i, cmd in enumerate(commands):
+            ser.write((cmd + '\n').encode('utf-8'))
+            print(f">>> [{i+1}/{len(commands)}] {cmd}")
             
-        # 发送命令
-        ser.write((command + '\n').encode('utf-8'))
-        print(f">>> {command}")
+            # 为每条命令等待 EOT
+            eot_received = False
+            cmd_start_time = time.time()
+            while time.time() - cmd_start_time < timeout:
+                if ser.in_waiting > 0:
+                    line = ser.readline()
+                    sys.stdout.write(line.decode('utf-8', errors='ignore'))
+                    sys.stdout.flush()
+                    if EOT_BEACON.strip() in line.strip():
+                        eot_received = True
+                        break
+                else:
+                    time.sleep(0.01) # 避免CPU空转
+            
+            if not eot_received:
+                print(f"\n错误: 执行 '{cmd}' 时超时 ({timeout}s)，未收到结束信标。", file=sys.stderr)
+                return # 中断执行
+
+        # 所有命令成功后，主循环不再需要处理EOT
+        print(f"--- 所有 {len(commands)} 条命令执行成功 ---")
+        return
 
     else:
         # --- 被动观测模式 ---
@@ -79,10 +102,8 @@ def run_test(port, timeout, command, delay):
                     sys.stdout.flush()
 
                     # 在主动模式下，检查是否收到了结束信标
-                    if is_active_mode and line.strip() == EOT_BEACON.strip():
-                        print(f"--- 收到结束信标，测试成功 ---")
-                        # 成功接收到信标，立即退出循环
-                        return
+                    # 主动模式下的 EOT 处理逻辑已移至上面的命令循环中
+                    pass
 
     except KeyboardInterrupt:
         print("\n--- 用户中断 ---")

@@ -202,9 +202,11 @@ void handle_display(const char* args) {
 
         String msg = String(content);
         msg.trim();
-        // 去掉首尾引号（如果存在）
-        if (msg.length() >= 2 && msg.startsWith("\"") && msg.endsWith("\"")) {
-            msg = msg.substring(1, msg.length() - 1);
+        // 去掉首尾的单引号或双引号（如果存在）
+        if (msg.length() >= 2) {
+            if ((msg.startsWith("\"") && msg.endsWith("\"")) || (msg.startsWith("'") && msg.endsWith("'"))) {
+                msg = msg.substring(1, msg.length() - 1);
+            }
         }
 
         (void)display_manager_clear();

@@ -9,6 +9,7 @@
 
 #include "hal/hal_config.h"
 #include "hal/hal_spi.h"
+#include "hal/hal_gpio.h" // 引入GPIO HAL以设置引脚模式
 #include "managers/power_manager.h"
 #include "managers/log_manager.h"
 
@@ -103,6 +104,15 @@ display_result_t display_manager_sleep() {
     s_display.hibernate();
     // 选择性关闭电源以实现零功耗
     power_screen_enable(false);
+
+    // 关键修复：将所有SPI引脚设置为输入模式，防止寄生供电
+    hal_gpio_pin_mode(PIN_DISPLAY_SCK, INPUT);
+    hal_gpio_pin_mode(PIN_DISPLAY_MOSI, INPUT);
+    hal_gpio_pin_mode(PIN_DISPLAY_CS, INPUT);
+    hal_gpio_pin_mode(PIN_DISPLAY_DC, INPUT);
+    hal_gpio_pin_mode(PIN_DISPLAY_RST, INPUT);
+    hal_gpio_pin_mode(PIN_DISPLAY_BUSY, INPUT);
+
     s_initialized = false;
     LOG_INFO("Display", "Display hibernated and power off");
     return DISPLAY_OK;
