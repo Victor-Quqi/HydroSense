@@ -75,12 +75,7 @@ void setup() {
     }
   #else
     // 在正常模式下，获取初始模式
-    current_mode = input_manager_get_mode();
-    LOG_INFO("Main", "Initial mode: %d", current_mode);
 
-    if (current_mode == SYSTEM_MODE_OFF) {
-        enter_off_mode_logic();
-    }
   #endif
 }
 
