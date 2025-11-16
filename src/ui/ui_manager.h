@@ -39,6 +39,12 @@ void ui_manager_loop();
  */
 void ui_manager_show_test_screen();
 
+/**
+ * @brief 显示关机界面
+ * @details 用于在进入OFF模式时调用
+ */
+void ui_manager_show_shutdown_screen();
+
 
 #ifdef __cplusplus
 } // extern "C"

@@ -93,3 +93,24 @@ void ui_manager_show_test_screen() {
 }
 
 } // extern "C"
+
+void ui_manager_show_shutdown_screen() {
+    if (!s_initialized) {
+        LOG_ERROR("UI", "UI Manager not initialized, cannot show shutdown screen");
+        return;
+    }
+
+    // 清理当前屏幕
+    lv_obj_clean(lv_scr_act());
+
+    // 创建一个标签控件显示关机信息
+    lv_obj_t * label = lv_label_create(lv_scr_act());
+    lv_label_set_text(label, "System is OFF.\nSafe to disconnect power.");
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+
+    // 手动触发一次LVGL重绘
+    lv_task_handler();
+    
+    // 刷新屏幕
+    display_manager_refresh(true); // 全屏刷新
+}

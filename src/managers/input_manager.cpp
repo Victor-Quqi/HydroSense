@@ -39,23 +39,20 @@ void input_manager_init() {
 system_mode_t input_manager_get_mode() {
     // 读取两个开关引脚的电平
     // 开关公共端接地，因此拨到某个位置时，对应引脚为LOW
-    bool state_a = (digitalRead(PIN_MODE_SWITCH_A) == LOW);
-    bool state_b = (digitalRead(PIN_MODE_SWITCH_B) == LOW);
+    bool state_a_low = (digitalRead(PIN_MODE_SWITCH_A) == LOW);
+    bool state_b_low = (digitalRead(PIN_MODE_SWITCH_B) == LOW);
 
-    // 根据双掷开关的组合状态判断模式
-    // OFF: A=0, B=0 (开关在中间，两边都不通)
-    // RUN: A=1, B=0 (开关拨到A)
-    // INTERACTIVE: A=0, B=1 (开关拨到B)
-    if (state_a && !state_b) {
-        return SYSTEM_MODE_RUN;
-    } else if (!state_a && state_b) {
-        return SYSTEM_MODE_INTERACTIVE;
-    } else if (!state_a && !state_b) {
+    // 根据新的模式定义进行判断
+    // OFF: A接地 (A=LOW, B=HIGH)
+    // RUN: B接地 (A=HIGH, B=LOW)
+    // INTERACTIVE: 中间 (A=HIGH, B=HIGH)
+    if (state_a_low) {
         return SYSTEM_MODE_OFF;
+    } else if (state_b_low) {
+        return SYSTEM_MODE_RUN;
+    } else {
+        return SYSTEM_MODE_INTERACTIVE;
     }
-
-    // 其他组合为未知状态
-    return SYSTEM_MODE_UNKNOWN;
 }
 
 void input_manager_loop() {
