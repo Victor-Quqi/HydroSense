@@ -47,16 +47,17 @@ static void process_power_command(const char* module_name, bool enable,
 
 /**
  * @brief 处理 "power" 命令
- * @param args 格式: "<module> <on|off>"
+ * @param args 格式: "set <module> <on|off>"
  *             module: sensor, boost12v, screen
  */
 void handle_power(const char* args) {
+    char action[MAX_ACTION_NAME_LEN];
     char module[MAX_MODULE_NAME_LEN];
     char state[MAX_STATE_NAME_LEN];
-    int items = sscanf(args, "%9s %3s", module, state);
+    int items = sscanf(args, "%9s %9s %3s", action, module, state);
 
-    if (items != 2) {
-        Serial.println("Error: Invalid arguments. Usage: power <module> <on|off>");
+    if (items != 3 || strcmp(action, "set") != 0) {
+        Serial.println("Error: Invalid arguments. Usage: power set <module> <on|off>");
         return;
     }
 
@@ -79,11 +80,25 @@ void handle_power(const char* args) {
 }
 
 /**
- * @brief 处理 "read" 命令
- * @param args 格式: "<all|humidity|battery>"
+ * @brief 处理 "sensor" 命令
+ * @param args 格式: "read <all|humidity|battery>"
  */
-void handle_read(const char* args) {
-    if (strcmp(args, "all") == 0) {
+void handle_sensor(const char* args) {
+    char action[MAX_ACTION_NAME_LEN];
+    char source[MAX_MODULE_NAME_LEN]; // Reuse for source
+    int items = sscanf(args, "%9s %9s", action, source);
+
+    if (items < 1 || strcmp(action, "read") != 0) {
+        Serial.println("Error: Invalid action. Usage: sensor read <source>");
+        return;
+    }
+
+    // If only "sensor read" is provided, default to "all"
+    if (items == 1) {
+        strcpy(source, "all");
+    }
+
+    if (strcmp(source, "all") == 0) {
         Serial.println("Reading all sensors...");
         sensor_data_t data;
         sensor_result_t result = sensor_manager_read_all(&data);
@@ -94,7 +109,7 @@ void handle_read(const char* args) {
         } else {
             Serial.printf("Error: Failed to read sensors. Result: %d\r\n", result);
         }
-    } else if (strcmp(args, "humidity") == 0) {
+    } else if (strcmp(source, "humidity") == 0) {
         Serial.println("Reading humidity sensor...");
         float humidity;
         sensor_result_t result = sensor_manager_get_humidity(&humidity);
@@ -104,7 +119,7 @@ void handle_read(const char* args) {
         } else {
             Serial.printf("Error: Failed to read humidity. Result: %d\r\n", result);
         }
-    } else if (strcmp(args, "battery") == 0) {
+    } else if (strcmp(source, "battery") == 0) {
         Serial.println("Reading battery voltage...");
         float voltage;
         sensor_result_t result = sensor_manager_get_battery_voltage(&voltage);
@@ -115,7 +130,7 @@ void handle_read(const char* args) {
             Serial.printf("Error: Failed to read battery voltage. Result: %d\r\n", result);
         }
     } else {
-        Serial.println("Error: Invalid arguments. Usage: read <all|humidity|battery>");
+        Serial.println("Error: Invalid source. Usage: sensor read <all|humidity|battery>");
         return;
     }
 }
@@ -240,46 +255,51 @@ void handle_display(const char* args) {
 }
 
 /**
- * @brief 处理 "input" 命令
- * @param args 格式: "get_mode"
+ * @brief 处理 "system" 命令
+ * @param args 格式: "get mode"
  */
-void handle_input(const char* args) {
-    if (strcmp(args, "get_mode") == 0) {
-        system_mode_t mode = input_manager_get_mode();
-        const char* mode_str;
-        switch (mode) {
-            case SYSTEM_MODE_OFF:
-                mode_str = "OFF";
-                break;
-            case SYSTEM_MODE_RUN:
-                mode_str = "RUN";
-                break;
-            case SYSTEM_MODE_INTERACTIVE:
-                mode_str = "INTERACTIVE";
-                break;
-            default:
-                mode_str = "UNKNOWN";
-                break;
-        }
-        Serial.printf("Current system mode: %s\r\n", mode_str);
-    } else {
-        Serial.println("Error: Invalid arguments. Usage: input get_mode");
+void handle_system(const char* args) {
+    char action[MAX_ACTION_NAME_LEN];
+    char target[MAX_MODULE_NAME_LEN];
+    int items = sscanf(args, "%9s %9s", action, target);
+
+    if (items != 2 || strcmp(action, "get") != 0 || strcmp(target, "mode") != 0) {
+        Serial.println("Error: Invalid arguments. Usage: system get mode");
+        return;
     }
+
+    system_mode_t mode = input_manager_get_mode();
+    const char* mode_str;
+    switch (mode) {
+        case SYSTEM_MODE_OFF:
+            mode_str = "OFF";
+            break;
+        case SYSTEM_MODE_RUN:
+            mode_str = "RUN";
+            break;
+        case SYSTEM_MODE_INTERACTIVE:
+            mode_str = "INTERACTIVE";
+            break;
+        default:
+            mode_str = "UNKNOWN";
+            break;
+    }
+    Serial.printf("Current system mode: %s\r\n", mode_str);
 }
 
 // --- 命令定义 ---
 
 static const CommandRegistryEntry hal_commands[] = {
-    {"power", handle_power, "Controls power gates. Usage: power <module> <on|off>\r\n"
+    {"power", handle_power, "Controls power gates. Usage: power set <module> <on|off>\r\n"
                            "  - module: sensor, boost12v, screen"},
-    {"read", handle_read, "Reads sensor data. Usage: read <source>\r\n"
-                         "  - source: all, humidity, battery"},
+    {"sensor", handle_sensor, "Reads sensor data. Usage: sensor read <source>\r\n"
+                            "  - source: all, humidity, battery"},
     {"pump", handle_pump, "Runs the water pump. Usage: pump run <duty> <ms>\r\n"
                          "  - duty: 0-255 (PWM duty cycle)\r\n"
                          "  - ms: 1-30000 (duration in milliseconds)"},
     {"display", handle_display, "Controls the display. Usage: display <action> [params]\r\n"
                                "  - actions: init, text \"msg\", sleep, lvgl_test"},
-    {"input", handle_input, "Gets input device status. Usage: input get_mode"}
+    {"system", handle_system, "Gets system status. Usage: system get mode"}
 };
 
 // --- 公共 API ---

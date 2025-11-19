@@ -13,23 +13,25 @@
 // --- Command Handler Functions ---
 
 /**
- * @brief Handle "force water" command
+ * @brief Handle "run" command
  *
- * Simulates a "low humidity" event and triggers the complete
- * "measure -> water -> log" sequence regardless of actual humidity.
- * Returns JSON-formatted results for programmatic parsing.
- *
- * @param args Command arguments (unused)
+ * @param args Expected format: "force_water"
  */
-void handle_force_water(const char* args) {
-    (void)args;  // Unused parameter
+void handle_run(const char* args) {
+    char action[20];
+    int items = sscanf(args, "%19s", action);
+
+    if (items != 1 || strcmp(action, "force_water") != 0) {
+        Serial.println("Error: Invalid arguments. Usage: run force_water");
+        return;
+    }
 
     // Execute forced watering cycle
     run_mode_result_t result = run_mode_manager_force_water();
 
     // Return JSON response
     Serial.print("{");
-    Serial.print("\"command\":\"force_water\",");
+    Serial.print("\"command\":\"run force_water\",");
     Serial.print("\"status\":");
     if (result == RUN_MODE_OK) {
         Serial.print("\"success\",");
@@ -63,7 +65,8 @@ void handle_force_water(const char* args) {
 
 // Define all commands provided by this module
 static const CommandRegistryEntry run_commands[] = {
-    {"forcewater", handle_force_water, "Force a watering cycle for testing. Triggers complete measure->water->log sequence."}
+    {"run", handle_run, "RUN mode commands. Usage: run <action>\r\n"
+                       "  - action: force_water (triggers a full watering cycle)"}
 };
 
 // --- Public API ---
