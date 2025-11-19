@@ -14,12 +14,14 @@
   #include "test/test_commands_core.h"
   #include "test/test_commands_hal.h"
   #include "test/test_commands_log.h"
+  #include "test/test_commands_run.h"
 #endif
 
 #include "managers/power_manager.h"
 #include "managers/sensor_manager.h"
 #include "managers/log_manager.h"
 #include "managers/actuator_manager.h"
+#include "managers/run_mode_manager.h"
 #include "ui/ui_manager.h"
 #include "managers/input_manager.h"
 #include "hal/hal_rtc.h"
@@ -27,6 +29,7 @@
 // --- 私有状态变量 ---
 static system_mode_t current_mode = SYSTEM_MODE_UNKNOWN;
 static system_mode_t last_read_mode = SYSTEM_MODE_UNKNOWN;
+static system_mode_t last_active_mode = SYSTEM_MODE_UNKNOWN;
 static unsigned long last_debounce_time = 0;
 static const unsigned long debounce_delay = 50; // 50ms 消抖延迟
 
@@ -51,6 +54,7 @@ static void test_mode_setup() {
   test_commands_core_init();
   test_commands_hal_init();
   test_commands_log_init();
+  test_commands_run_init();
 }
 #endif
 
@@ -64,6 +68,7 @@ void setup() {
   power_result_t power_init_result = power_manager_init();
   sensor_manager_init();
   actuator_manager_init();
+  run_mode_manager_init();
   input_manager_init();
   hal_rtc_init();
   ui_manager_init();
@@ -103,13 +108,29 @@ void loop() {
         // 并且这个稳定的模式与当前激活的模式不同
         if (reading != current_mode) {
             LOG_INFO("Main", "Mode changed from %d to %d", current_mode, reading);
-            current_mode = reading; // 采纳新的稳定模式
 
+            // 退出旧模式的逻辑
+            if (last_active_mode == SYSTEM_MODE_RUN) {
+                run_mode_manager_exit();
+            }
+
+            current_mode = reading; // 采纳新的稳定模式
+            last_active_mode = current_mode;
+
+            // 进入新模式的逻辑
             if (current_mode == SYSTEM_MODE_OFF) {
                 enter_off_mode_logic();
+            } else if (current_mode == SYSTEM_MODE_RUN) {
+                run_mode_manager_enter();
             }
-            // 在这里可以添加其他模式切换的逻辑
+            // SYSTEM_MODE_INTERACTIVE 将在 Issue #21 中实现
         }
+    }
+
+    // 执行当前模式的循环逻辑
+    if (current_mode == SYSTEM_MODE_RUN) {
+        run_mode_manager_loop();
+        actuator_manager_loop();  // 必须调用以支持定时泵操作
     }
   #endif
 }
