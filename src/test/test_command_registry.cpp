@@ -11,7 +11,7 @@
 // --- 私有变量 ---
 
 // 定义命令注册表的最大容量
-#define MAX_COMMANDS 20
+#define MAX_COMMANDS 30
 
 // 命令注册表
 static CommandRegistryEntry command_registry[MAX_COMMANDS];

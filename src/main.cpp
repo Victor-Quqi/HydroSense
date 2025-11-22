@@ -15,6 +15,9 @@
   #include "test/test_commands_hal.h"
   #include "test/test_commands_log.h"
   #include "test/test_commands_run.h"
+  #include "test/test_commands_config.h"
+  #include "test/test_commands_wifi.h"
+  #include "test/test_commands_time.h"
 #endif
 
 #include "managers/power_manager.h"
@@ -26,6 +29,9 @@
 #include "ui/display_manager.h"
 #include "managers/input_manager.h"
 #include "hal/hal_rtc.h"
+#include "services/config_manager.h"
+#include "services/wifi_manager.h"
+#include "services/time_manager.h"
 
 // --- 私有状态变量 ---
 static system_mode_t current_mode = SYSTEM_MODE_UNKNOWN;
@@ -56,6 +62,9 @@ static void test_mode_setup() {
   test_commands_hal_init();
   test_commands_log_init();
   test_commands_run_init();
+  test_commands_config_init();
+  test_commands_wifi_init();
+  test_commands_time_init();
 }
 #endif
 
@@ -66,6 +75,9 @@ void setup() {
   #endif
 
   log_manager_init();
+  ConfigManager::instance().init();  // 初始化配置管理器
+  WiFiManager::instance().init();     // 初始化WiFi管理器
+  TimeManager::instance().init();     // 初始化时间管理器
   power_result_t power_init_result = power_manager_init();
   sensor_manager_init();
   actuator_manager_init();
@@ -92,6 +104,7 @@ void loop() {
     actuator_manager_loop();
     ui_manager_loop();
     input_manager_loop();
+    WiFiManager::instance().update();  // 更新WiFi状态
     // 测试模式处理 - 禁用深度睡眠，持续响应CLI
     test_cli_loop();
   #else
