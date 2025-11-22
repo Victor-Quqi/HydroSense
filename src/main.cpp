@@ -18,6 +18,7 @@
   #include "test/test_commands_config.h"
   #include "test/test_commands_wifi.h"
   #include "test/test_commands_time.h"
+  #include "test/test_commands_llm.h"
 #endif
 
 #include "managers/power_manager.h"
@@ -32,6 +33,7 @@
 #include "services/config_manager.h"
 #include "services/wifi_manager.h"
 #include "services/time_manager.h"
+#include "services/llm_connector.h"
 
 // --- 私有状态变量 ---
 static system_mode_t current_mode = SYSTEM_MODE_UNKNOWN;
@@ -65,6 +67,7 @@ static void test_mode_setup() {
   test_commands_config_init();
   test_commands_wifi_init();
   test_commands_time_init();
+  test_commands_llm_init();
 }
 #endif
 
@@ -78,6 +81,7 @@ void setup() {
   ConfigManager::instance().init();  // 初始化配置管理器
   WiFiManager::instance().init();     // 初始化WiFi管理器
   TimeManager::instance().init();     // 初始化时间管理器
+  LLMConnector::instance().init();    // 初始化LLM连接器
   power_result_t power_init_result = power_manager_init();
   sensor_manager_init();
   actuator_manager_init();
