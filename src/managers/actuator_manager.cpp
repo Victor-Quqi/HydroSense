@@ -105,3 +105,8 @@ void actuator_manager_loop()
         }
     }
 }
+
+bool actuator_manager_is_pump_running()
+{
+    return is_pump_running;
+}

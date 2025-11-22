@@ -52,10 +52,12 @@ display_result_t display_manager_init() {
     }
 
     // 3) 初始化 GxEPD2 显示 (使用全帧缓冲模型)
-    // 参数: serial_bitrate, init_serial, rst_duration_ms, pulldown, spi, spi_settings
+    // 参数: serial_bitrate, initial, rst_duration_ms, pulldown, spi, spi_settings
+    // initial=false: 用于深度睡眠唤醒后重新初始化（如果显示电源保持供电）
+    // 避免 _initial_refresh 标志导致 partial refresh 被强制转换为 full refresh
     s_display.init(
         115200,
-        true,
+        false,  // 修改：initial=false 避免双重刷新问题
         10,
         false,
         *spi,
@@ -93,8 +95,12 @@ display_result_t display_manager_draw_text(const char* text, int16_t x, int16_t 
 display_result_t display_manager_refresh(bool full_refresh) {
     if (!s_initialized) return DISPLAY_ERROR_NOT_INIT;
 
+    LOG_INFO("Display", ">>> refresh START (full=%d)", full_refresh);
+
     // GxEPD2: display.display(false) = 全局刷新; display.display(true) = 局部刷新
     s_display.display(full_refresh ? false : true);
+
+    LOG_INFO("Display", "<<< refresh END");
     return DISPLAY_OK;
 }
 

@@ -45,6 +45,19 @@ void ui_manager_show_test_screen();
  */
 void ui_manager_show_shutdown_screen();
 
+/**
+ * @brief 显示RUN模式的状态仪表盘
+ * @details 在墨水屏上显示系统核心状态信息
+ * @param humidity_pct 当前土壤湿度百分比
+ * @param threshold_pct 浇水阈值百分比
+ * @param battery_v 当前电池电压 (V)
+ * @param last_water_time 上次浇水时间字符串 (如 "2m ago" 或 "N/A")
+ * @param system_status 系统状态字符串 (如 "Watering..." 或 "Sleeping...")
+ */
+void ui_manager_show_run_dashboard(float humidity_pct, float threshold_pct,
+                                    float battery_v, const char* last_water_time,
+                                    const char* system_status);
+
 
 #ifdef __cplusplus
 } // extern "C"

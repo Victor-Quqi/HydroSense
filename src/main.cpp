@@ -23,6 +23,7 @@
 #include "managers/actuator_manager.h"
 #include "managers/run_mode_manager.h"
 #include "ui/ui_manager.h"
+#include "ui/display_manager.h"
 #include "managers/input_manager.h"
 #include "hal/hal_rtc.h"
 
@@ -129,8 +130,9 @@ void loop() {
 
     // 执行当前模式的循环逻辑
     if (current_mode == SYSTEM_MODE_RUN) {
-        run_mode_manager_loop();
-        actuator_manager_loop();  // 必须调用以支持定时泵操作
+        ui_manager_loop();            // 处理LVGL任务队列
+        run_mode_manager_loop();      // 自动浇水逻辑和智能UI更新
+        actuator_manager_loop();      // 必须调用以支持定时泵操作
     }
   #endif
 }
@@ -145,6 +147,9 @@ static void enter_off_mode_logic() {
     actuator_manager_stop_pump();
 
     // 2. 显示关机屏幕
+    // 【修复】：移除重新初始化逻辑
+    // display_manager 在 sleep 后无法正确重新初始化（GxEPD2 静态对象状态问题）
+    // 依赖系统启动时的一次性初始化，RUN 模式退出时不再销毁状态
     power_screen_enable(true);
     ui_manager_show_shutdown_screen();
     delay(200); // 等待屏幕刷新指令发送

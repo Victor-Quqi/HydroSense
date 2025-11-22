@@ -42,4 +42,10 @@ void actuator_manager_run_pump_for(uint8_t duty_cycle, uint32_t duration_ms);
  */
 void actuator_manager_loop();
 
+/**
+ * @brief 查询水泵是否正在运行
+ * @return true 水泵正在运行, false 水泵已停止
+ */
+bool actuator_manager_is_pump_running();
+
 #endif // ACTUATOR_MANAGER_H
