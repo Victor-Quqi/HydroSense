@@ -38,7 +38,7 @@ constexpr bool POWER_OFF = HIGH;
  * RATIO = (4700000 + 330000) / 330000 ≈ 15.2424
  */
 #define VOLTAGE_DIVIDER_RATIO  15.2424f
-#define ADC_REFERENCE_VOLTAGE 4.50f
+#define ADC_REFERENCE_VOLTAGE 4.325f
 
 // --- 4. 用户输入 (User Inputs) ---
 #define PIN_ENCODER_A          1
