@@ -7,12 +7,12 @@
 #include "hal/hal_config.h"
 #include "hal/hal_gpio.h"
 #include "managers/log_manager.h"
+#include "data/timing_constants.h"
 #include <Arduino.h>
 
 // --- 旋转编码器状态变量 ---
 static uint8_t last_encoder_state = 0;
 static int encoder_counter = 0;
-#define ENCODER_THRESHOLD 4 // 可调参数：累积多少步才算一次有效旋转
 static unsigned long last_debounce_time = 0;
 static const unsigned long debounce_delay = 50; // ms
 
@@ -27,7 +27,6 @@ static int button_stable_state = HIGH; // 记录稳定的按键状态
 static bool button_clicked_flag = false; // 单击事件标志
 static bool button_double_clicked_flag = false; // 双击事件标志
 static unsigned long last_click_time = 0; // 上次单击时间
-static const unsigned long double_click_interval = 233; // 双击间隔阈值（ms）
 static bool button_pending = false; // 等待确认是单击还是双击的pending状态
 
 
@@ -75,10 +74,10 @@ void input_manager_loop() {
         int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
         encoder_counter += direction;
 
-        if (encoder_counter >= ENCODER_THRESHOLD) {
+        if (encoder_counter >= INPUT_ENCODER_THRESHOLD) {
             encoder_delta = 1; // 顺时针：设置增量为+1
             encoder_counter = 0;
-        } else if (encoder_counter <= -ENCODER_THRESHOLD) {
+        } else if (encoder_counter <= -INPUT_ENCODER_THRESHOLD) {
             encoder_delta = -1; // 逆时针：设置增量为-1
             encoder_counter = 0;
         }
@@ -103,7 +102,7 @@ void input_manager_loop() {
             if (button_stable_state == LOW) {
                 unsigned long current_time = millis();
                 // 检测双击：如果当前是pending状态且在双击间隔内
-                if (button_pending && (current_time - last_click_time) < double_click_interval) {
+                if (button_pending && (current_time - last_click_time) < INPUT_DOUBLE_CLICK_INTERVAL_MS) {
                     button_double_clicked_flag = true; // 确认为双击
                     button_pending = false; // 清除pending状态
                     last_click_time = 0;
@@ -117,7 +116,7 @@ void input_manager_loop() {
     }
 
     // 检查pending超时：如果等待时间超过双击间隔，确认为单击
-    if (button_pending && (millis() - last_click_time) >= double_click_interval) {
+    if (button_pending && (millis() - last_click_time) >= INPUT_DOUBLE_CLICK_INTERVAL_MS) {
         button_clicked_flag = true; // 确认为单击
         button_pending = false; // 清除pending状态
     }

@@ -6,6 +6,9 @@
 #ifndef UI_MANAGER_H
 #define UI_MANAGER_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,6 +60,15 @@ void ui_manager_show_shutdown_screen();
 void ui_manager_show_run_dashboard(float humidity_pct, float threshold_pct,
                                     float battery_v, const char* last_water_time,
                                     const char* system_status);
+
+// TODO: P2阶段统一实现所有Interactive模式UI组件
+// void ui_manager_show_status(...);
+// void ui_manager_show_menu(...);
+// void ui_manager_show_setting_edit(...);
+// void ui_manager_show_watering_confirm(...);
+// void ui_manager_show_watering_progress(...);
+// void ui_manager_show_watering_result(...);
+// void ui_manager_show_chat_screen(...);
 
 
 #ifdef __cplusplus

@@ -10,16 +10,13 @@
 #include "power_manager.h"
 #include "ui/ui_manager.h"
 #include "ui/display_manager.h"
+#include "../services/config_manager.h"
 #include <Arduino.h>
 #include <stdio.h>
 #include <lvgl.h>
 
-// Configuration constants (hardcoded for initial implementation)
-// TODO: Move these to config_manager for user-adjustable settings
+// Internal timing constants (not user-configurable)
 static const uint32_t CHECK_INTERVAL_MS = 5000;      // Check humidity every 5 seconds
-static const uint16_t HUMIDITY_THRESHOLD = 1500;     // ADC raw value threshold (capacitive sensor: higher = drier)
-static const uint16_t WATERING_DURATION_MS = 3000;   // Run pump for 3 seconds
-static const uint8_t PUMP_DUTY_CYCLE = 200;          // PWM duty cycle (0-255)
 
 // State variables
 static bool s_initialized = false;
@@ -40,17 +37,16 @@ static const float VOLTAGE_CHANGE_THRESHOLD = 0.1f;   // Trigger update if volta
 static const uint8_t PARTIAL_REFRESH_LIMIT = 10;      // Full refresh every 10 partial refreshes
 static const uint32_t FULL_REFRESH_INTERVAL_MS = 1800000;  // Full refresh every 30 minutes
 
-// Soil moisture calibration (hardcoded, future: user-configurable via NVS)
-static const uint16_t SOIL_ADC_DRY = 2600;
-static const uint16_t SOIL_ADC_WET = 1000;
-
 /**
  * @brief Internal helper to convert ADC to humidity percentage
+ * @param adc_value Raw ADC reading
+ * @param adc_wet Wet threshold (lower ADC = wetter soil)
+ * @param adc_dry Dry threshold (higher ADC = drier soil)
  */
-static float adc_to_humidity_percent(uint16_t adc_value) {
-    if (adc_value >= SOIL_ADC_DRY) return 0.0f;
-    if (adc_value <= SOIL_ADC_WET) return 100.0f;
-    return 100.0f - ((float)(adc_value - SOIL_ADC_WET) * 100.0f) / (SOIL_ADC_DRY - SOIL_ADC_WET);
+static float adc_to_humidity_percent(uint16_t adc_value, uint16_t adc_wet, uint16_t adc_dry) {
+    if (adc_value >= adc_dry) return 0.0f;
+    if (adc_value <= adc_wet) return 100.0f;
+    return 100.0f - ((float)(adc_value - adc_wet) * 100.0f) / (adc_dry - adc_wet);
 }
 
 /**
@@ -79,6 +75,10 @@ static void format_time_ago(uint32_t timestamp_ms, char* buf, size_t buf_size) {
  * @param force_full_refresh If true, performs full refresh; otherwise decides based on counters
  */
 static void update_dashboard(bool force_full_refresh) {
+    // Get configuration
+    ConfigManager& config_mgr = ConfigManager::instance();
+    hydro_config_t config = config_mgr.getConfig();
+
     // Read current sensor data
     float humidity_raw = 0.0f;
     float battery_voltage = 0.0f;
@@ -87,8 +87,12 @@ static void update_dashboard(bool force_full_refresh) {
     sensor_manager_get_battery_voltage(&battery_voltage);
 
     // Convert to displayable values
-    float humidity_pct = adc_to_humidity_percent((uint16_t)humidity_raw);
-    float threshold_pct = adc_to_humidity_percent(HUMIDITY_THRESHOLD);
+    float humidity_pct = adc_to_humidity_percent((uint16_t)humidity_raw,
+                                                  config.watering.humidity_wet,
+                                                  config.watering.humidity_dry);
+    float threshold_pct = adc_to_humidity_percent(config.watering.threshold,
+                                                   config.watering.humidity_wet,
+                                                   config.watering.humidity_dry);
     bool pump_running = actuator_manager_is_pump_running();
 
     // Format time and status strings
@@ -134,6 +138,10 @@ static void update_dashboard(bool force_full_refresh) {
  * @return RUN_MODE_OK on success, error code otherwise
  */
 static run_mode_result_t execute_watering_sequence(bool force) {
+    // Get configuration
+    ConfigManager& config_mgr = ConfigManager::instance();
+    hydro_config_t config = config_mgr.getConfig();
+
     float humidity = 0.0f;
 
     // Step 1: Read humidity sensor
@@ -147,23 +155,23 @@ static run_mode_result_t execute_watering_sequence(bool force) {
 
     // Step 2: Check if watering is needed
     // Capacitive sensor: higher value = drier soil
-    bool should_water = force || (humidity > HUMIDITY_THRESHOLD);
+    bool should_water = force || (humidity > config.watering.threshold);
 
     if (!should_water) {
-        LOG_DEBUG("RunMode", "Humidity OK (%.2f <= %d), no watering needed", humidity, HUMIDITY_THRESHOLD);
+        LOG_DEBUG("RunMode", "Humidity OK (%.2f <= %d), no watering needed", humidity, config.watering.threshold);
         return RUN_MODE_OK;
     }
 
     // Step 3: Execute watering
-    LOG_INFO("RunMode", "Humidity LOW (%.2f > %d), starting watering cycle", humidity, HUMIDITY_THRESHOLD);
+    LOG_INFO("RunMode", "Humidity LOW (%.2f > %d), starting watering cycle", humidity, config.watering.threshold);
 
-    actuator_manager_run_pump_for(PUMP_DUTY_CYCLE, WATERING_DURATION_MS);
+    actuator_manager_run_pump_for(config.watering.power, config.watering.duration_ms);
 
     // Step 4: Log watering event and record timestamp
     s_watering_count++;
     s_last_watering_time = millis();  // Record when watering started
     LOG_INFO("RunMode", "Watering event #%lu: humidity=%.2f, duration=%dms, duty=%d/255",
-             s_watering_count, humidity, WATERING_DURATION_MS, PUMP_DUTY_CYCLE);
+             s_watering_count, humidity, config.watering.duration_ms, config.watering.power);
 
     return RUN_MODE_OK;
 }
@@ -178,8 +186,12 @@ run_mode_result_t run_mode_manager_init(void) {
     s_watering_count = 0;
     s_initialized = true;
 
+    // Get configuration for logging
+    ConfigManager& config_mgr = ConfigManager::instance();
+    hydro_config_t config = config_mgr.getConfig();
+
     LOG_INFO("RunMode", "Run mode manager initialized (check_interval=%lums, threshold=%d)",
-             CHECK_INTERVAL_MS, HUMIDITY_THRESHOLD);
+             CHECK_INTERVAL_MS, config.watering.threshold);
 
     return RUN_MODE_OK;
 }
@@ -233,13 +245,19 @@ run_mode_result_t run_mode_manager_loop(void) {
 
         LOG_INFO("RunMode", "Periodic humidity check triggered");
 
+        // Get configuration
+        ConfigManager& config_mgr = ConfigManager::instance();
+        hydro_config_t config = config_mgr.getConfig();
+
         // Read current sensor values for change detection
         float humidity_raw = 0.0f;
         float battery_voltage = 0.0f;
         sensor_manager_get_humidity(&humidity_raw);
         sensor_manager_get_battery_voltage(&battery_voltage);
 
-        float humidity_pct = adc_to_humidity_percent((uint16_t)humidity_raw);
+        float humidity_pct = adc_to_humidity_percent((uint16_t)humidity_raw,
+                                                      config.watering.humidity_wet,
+                                                      config.watering.humidity_dry);
         bool pump_running = actuator_manager_is_pump_running();
 
         // Detect significant changes

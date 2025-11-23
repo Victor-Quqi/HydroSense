@@ -21,6 +21,7 @@
   #include "test/test_commands_llm.h"
   #include "test/test_commands_chat.h"
   #include "test/test_commands_input.h"
+  #include "test/test_commands_interactive.h"
 #endif
 
 #include "managers/power_manager.h"
@@ -73,6 +74,7 @@ static void test_mode_setup() {
   test_commands_llm_init();
   test_commands_chat_init();
   test_commands_input_init();
+  test_commands_interactive_init();
 }
 #endif
 

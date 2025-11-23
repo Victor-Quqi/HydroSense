@@ -46,7 +46,7 @@ void handle_help(const char* args) {
             Serial.printf("Error: Command '%s' not found.\r\n", args);
         }
     } else { // 如果没有参数
-        Serial.println("--- Available Commands ---");
+        Serial.println("-------- Available Commands --------");
         Serial.println("Type 'help <command>' for more details.");
         for (size_t i = 0; i < registered_command_count; ++i) {
             // 提取用法的第一个片段作为简短说明
@@ -55,9 +55,9 @@ void handle_help(const char* args) {
             if (first_sentence_end != -1) {
                 help_str = help_str.substring(0, first_sentence_end + 1);
             }
-            Serial.printf("  %-10s - %s\r\n", command_registry[i].name, help_str.c_str());
+            Serial.printf("  %-15s - %s\r\n", command_registry[i].name, help_str.c_str());
         }
-        Serial.println("--------------------------");
+        Serial.println("------------------------------------");
     }
 }
 

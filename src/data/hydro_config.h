@@ -15,6 +15,9 @@ typedef struct {
     uint16_t threshold;         ///< 土壤湿度阈值 (ADC值, 0-4095)
     uint16_t duration_ms;       ///< 单次浇水持续时间 (毫秒)
     uint16_t min_interval_s;    ///< 最小浇水间隔 (秒)
+    uint16_t power;             ///< 水泵功率/占空比 (0-255, PWM duty cycle)
+    uint16_t humidity_wet;      ///< 湿润阈值 (ADC值, 用于百分比计算下限)
+    uint16_t humidity_dry;      ///< 干燥阈值 (ADC值, 用于百分比计算上限)
     char plant_type[32];        ///< 植物类型 (如"绿萝", "多肉")
 } hydro_watering_config_t;
 

@@ -72,6 +72,15 @@ interactive_mode_result_t interactive_mode_manager_loop(void);
  */
 interactive_mode_result_t interactive_mode_manager_exit(void);
 
+/**
+ * @brief Check if exit is requested (for test mode)
+ * @details
+ *   In test mode, double-click in main menu sets exit flag.
+ *   In production, this always returns false.
+ * @return true if exit requested, false otherwise
+ */
+bool interactive_mode_manager_should_exit(void);
+
 #ifdef __cplusplus
 }
 #endif

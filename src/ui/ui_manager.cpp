@@ -184,3 +184,5 @@ void ui_manager_show_run_dashboard(float humidity_pct, float threshold_pct,
 
     LOG_DEBUG("UI", "RUN dashboard objects created");
 }
+
+// TODO: P2阶段统一实现所有Interactive模式UI组件

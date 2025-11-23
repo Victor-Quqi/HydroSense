@@ -54,6 +54,9 @@ hydro_config_t ConfigManager::getDefaultConfig() {
     cfg.watering.threshold = 2000;           // ADC阈值
     cfg.watering.duration_ms = 3000;         // 浇水3秒
     cfg.watering.min_interval_s = 3600;      // 最小间隔1小时
+    cfg.watering.power = 200;                // 水泵功率 (默认200/255)
+    cfg.watering.humidity_wet = 1000;        // 湿润下限 (ADC值)
+    cfg.watering.humidity_dry = 2600;        // 干燥上限 (ADC值)
     strncpy(cfg.watering.plant_type, "UnnamedPlant", sizeof(cfg.watering.plant_type) - 1);
     cfg.watering.plant_type[sizeof(cfg.watering.plant_type) - 1] = '\0';
 
@@ -107,6 +110,9 @@ bool ConfigManager::loadConfig() {
         m_config.watering.threshold = watering_obj["threshold"] | m_config.watering.threshold;
         m_config.watering.duration_ms = watering_obj["duration_ms"] | m_config.watering.duration_ms;
         m_config.watering.min_interval_s = watering_obj["min_interval_s"] | m_config.watering.min_interval_s;
+        m_config.watering.power = watering_obj["power"] | m_config.watering.power;
+        m_config.watering.humidity_wet = watering_obj["humidity_wet"] | m_config.watering.humidity_wet;
+        m_config.watering.humidity_dry = watering_obj["humidity_dry"] | m_config.watering.humidity_dry;
 
         const char* plant_type = watering_obj["plant_type"] | m_config.watering.plant_type;
         strncpy(m_config.watering.plant_type, plant_type, sizeof(m_config.watering.plant_type) - 1);
@@ -183,6 +189,9 @@ bool ConfigManager::saveConfig() {
     watering_obj["threshold"] = m_config.watering.threshold;
     watering_obj["duration_ms"] = m_config.watering.duration_ms;
     watering_obj["min_interval_s"] = m_config.watering.min_interval_s;
+    watering_obj["power"] = m_config.watering.power;
+    watering_obj["humidity_wet"] = m_config.watering.humidity_wet;
+    watering_obj["humidity_dry"] = m_config.watering.humidity_dry;
     watering_obj["plant_type"] = m_config.watering.plant_type;
 
     // WiFi配置
@@ -238,6 +247,9 @@ String ConfigManager::getConfigJson() {
     watering_obj["threshold"] = m_config.watering.threshold;
     watering_obj["duration_ms"] = m_config.watering.duration_ms;
     watering_obj["min_interval_s"] = m_config.watering.min_interval_s;
+    watering_obj["power"] = m_config.watering.power;
+    watering_obj["humidity_wet"] = m_config.watering.humidity_wet;
+    watering_obj["humidity_dry"] = m_config.watering.humidity_dry;
     watering_obj["plant_type"] = m_config.watering.plant_type;
 
     // WiFi配置（隐藏密码和API Key）

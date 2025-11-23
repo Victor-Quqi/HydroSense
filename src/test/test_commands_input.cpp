@@ -11,6 +11,7 @@
 #include "test_commands_input.h"
 #include "test_command_registry.h"
 #include "managers/input_manager.h"
+#include "data/timing_constants.h"
 #include <Arduino.h>
 
 #ifdef TEST_MODE
@@ -19,24 +20,25 @@
 
 /**
  * @brief 处理 "input" 命令 - poll子命令
- * @details 持续轮询5秒，显示所有编码器和按键事件
+ * @details 持续轮询，显示所有编码器和按键事件
  */
 void handle_input_poll() {
     Serial.println("{");
     Serial.println("  \"command\": \"input_poll\",");
     Serial.println("  \"status\": \"polling\",");
-    Serial.println("  \"duration_ms\": 5000,");
-    Serial.println("  \"message\": \"Polling for 5 seconds. Rotate encoder or press button...\"");
+    Serial.print("  \"duration_ms\": ");
+    Serial.print(TEST_INPUT_POLL_DURATION_MS);
+    Serial.println(",");
+    Serial.println("  \"message\": \"Polling for input events. Rotate encoder or press button...\"");
     Serial.println("}");
 
     // 清除开始前累积的事件，避免莫名其妙的旧事件
     input_manager_clear_events();
 
     unsigned long start_time = millis();
-    unsigned long poll_duration = 5000; // 5秒
     int event_count = 0;
 
-    while (millis() - start_time < poll_duration) {
+    while (millis() - start_time < TEST_INPUT_POLL_DURATION_MS) {
         // 关键：必须先调用loop更新硬件状态
         input_manager_loop();
 
@@ -64,7 +66,7 @@ void handle_input_poll() {
         }
 
         // 缩短延迟，提高响应速度（减少漏检）
-        delay(1); // 1ms延迟，避免CPU占用过高
+        delay(TEST_LOOP_DELAY_MS); // 平衡CPU占用和响应速度
     }
 
     Serial.println("{");
