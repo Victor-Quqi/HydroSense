@@ -29,6 +29,7 @@
 #include "managers/log_manager.h"
 #include "managers/actuator_manager.h"
 #include "managers/run_mode_manager.h"
+#include "managers/interactive_mode_manager.h"
 #include "ui/ui_manager.h"
 #include "ui/display_manager.h"
 #include "managers/input_manager.h"
@@ -94,6 +95,7 @@ void setup() {
   sensor_manager_init();
   actuator_manager_init();
   run_mode_manager_init();
+  interactive_mode_manager_init();    // 初始化Interactive Mode管理器
   input_manager_init();
   hal_rtc_init();
   ui_manager_init();
@@ -138,6 +140,8 @@ void loop() {
             // 退出旧模式的逻辑
             if (last_active_mode == SYSTEM_MODE_RUN) {
                 run_mode_manager_exit();
+            } else if (last_active_mode == SYSTEM_MODE_INTERACTIVE) {
+                interactive_mode_manager_exit();
             }
 
             current_mode = reading; // 采纳新的稳定模式
@@ -148,8 +152,9 @@ void loop() {
                 enter_off_mode_logic();
             } else if (current_mode == SYSTEM_MODE_RUN) {
                 run_mode_manager_enter();
+            } else if (current_mode == SYSTEM_MODE_INTERACTIVE) {
+                interactive_mode_manager_enter();
             }
-            // SYSTEM_MODE_INTERACTIVE 将在 Issue #21 中实现
         }
     }
 
@@ -158,6 +163,12 @@ void loop() {
         ui_manager_loop();            // 处理LVGL任务队列
         run_mode_manager_loop();      // 自动浇水逻辑和智能UI更新
         actuator_manager_loop();      // 必须调用以支持定时泵操作
+    } else if (current_mode == SYSTEM_MODE_INTERACTIVE) {
+        ui_manager_loop();            // 处理LVGL任务队列
+        input_manager_loop();         // 处理编码器和按钮输入
+        interactive_mode_manager_loop();  // Interactive模式状态机
+        actuator_manager_loop();      // 必须调用以支持浇水操作
+        WiFiManager::instance().update();  // 更新WiFi状态（LLM需要）
     }
   #endif
 }

@@ -199,16 +199,57 @@ bool HistoryManager::save() {
     return true;
 }
 
+/**
+ * @brief 格式化时间戳为可读字符串
+ * @param timestamp Unix时间戳
+ * @param buffer 输出缓冲区
+ * @param size 缓冲区大小
+ */
+static void formatTimestamp(uint32_t timestamp, char* buffer, size_t size) {
+    TimeManager& time_mgr = TimeManager::instance();
+
+    if (time_mgr.isTimeSynced() && timestamp > 0) {
+        // 时间已同步，显示绝对时间 HH:MM:SS
+        struct tm timeinfo;
+        time_t ts = timestamp;
+        localtime_r(&ts, &timeinfo);
+        strftime(buffer, size, "%H:%M:%S", &timeinfo);
+    } else {
+        // 时间未同步或无时间戳，显示相对时间
+        if (timestamp > 0) {
+            unsigned long seconds = timestamp;
+            unsigned long minutes = seconds / 60;
+            unsigned long hours = minutes / 60;
+
+            seconds %= 60;
+            minutes %= 60;
+
+            snprintf(buffer, size, "+%02lu:%02lu:%02lu", hours, minutes, seconds);
+        } else {
+            snprintf(buffer, size, "N/A");
+        }
+    }
+}
+
 void HistoryManager::buildContextMessages(JsonArray& messages) {
     for (const auto& turn : m_history) {
-        // 添加用户消息
+        char time_buf[16];
+        formatTimestamp(turn.timestamp, time_buf, sizeof(time_buf));
+
+        // 添加用户消息（带时间戳）
+        char user_content[160];
+        snprintf(user_content, sizeof(user_content), "[%s] %s", time_buf, turn.user_msg);
+
         JsonObject user_msg = messages.add<JsonObject>();
         user_msg["role"] = "user";
-        user_msg["content"] = turn.user_msg;
+        user_msg["content"] = user_content;
 
-        // 添加助手回复
+        // 添加助手回复（带时间戳）
+        char assistant_content[280];
+        snprintf(assistant_content, sizeof(assistant_content), "[%s] %s", time_buf, turn.plant_msg);
+
         JsonObject assistant_msg = messages.add<JsonObject>();
         assistant_msg["role"] = "assistant";
-        assistant_msg["content"] = turn.plant_msg;
+        assistant_msg["content"] = assistant_content;
     }
 }

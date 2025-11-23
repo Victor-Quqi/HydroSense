@@ -5,6 +5,7 @@
 
 #include "interactive_settings.h"
 #include "interactive_common.h"
+#include "../../ui/ui_manager.h"
 
 // Setting item enumeration
 typedef enum {
@@ -85,6 +86,8 @@ interactive_state_t interactive_settings_handle(interactive_state_t* state) {
     hydro_config_t config = config_mgr.getConfig();
 
     if (!settings_logged) {
+#ifdef TEST_MODE
+        // TEST_MODE: 串口LOG输出
         LOG_INFO("Interactive", "=== Settings Menu ===");
         for (int i = 0; i < SETTING_COUNT; i++) {
             int value = get_setting_value(config, (setting_item_t)i);
@@ -93,15 +96,38 @@ interactive_state_t interactive_settings_handle(interactive_state_t* state) {
                      value, setting_ranges[i].unit);
         }
         LOG_INFO("Interactive", "Click=Edit, Double-Click=Return");
+#else
+        // 生产环境: 构建菜单项数组
+        const char* menu_items[SETTING_COUNT];
+        char item_buffers[SETTING_COUNT][80];
+        for (int i = 0; i < SETTING_COUNT; i++) {
+            int value = get_setting_value(config, (setting_item_t)i);
+            snprintf(item_buffers[i], sizeof(item_buffers[i]), "%s: %d %s",
+                     setting_names[i], value, setting_ranges[i].unit);
+            menu_items[i] = item_buffers[i];
+        }
+        ui_manager_show_menu("Settings", menu_items, SETTING_COUNT,
+                             settings_menu_index, "[Click=Edit DblClick=Back]");
+#endif
         settings_logged = true;
     }
 
-    // Encoder rotation
-    int8_t delta = input_manager_get_encoder_delta();
-    if (delta != 0) {
-        settings_menu_index = (settings_menu_index + delta + SETTING_COUNT) % SETTING_COUNT;
-        LOG_INFO("Interactive", "Selected: %s", setting_names[settings_menu_index]);
+    // Encoder rotation - batch consume all deltas
+    int total_delta = 0;
+    int8_t delta;
+    while ((delta = input_manager_get_encoder_delta()) != 0) {
+        total_delta += delta;
+    }
+    if (total_delta != 0) {
+        settings_menu_index = (settings_menu_index + total_delta + SETTING_COUNT * 10) % SETTING_COUNT;
+        LOG_INFO("Interactive", "Selected: %s (delta=%d)", setting_names[settings_menu_index], total_delta);
         settings_logged = false;
+    }
+
+    // Long press - trigger full refresh
+    if (input_manager_get_button_long_pressed()) {
+        LOG_INFO("Interactive", "Long press detected - triggering full refresh");
+        ui_manager_trigger_full_refresh();
     }
 
     // Single click - enter edit mode
@@ -131,24 +157,44 @@ void interactive_setting_edit_enter(void) {
 
 interactive_state_t interactive_setting_edit_handle(interactive_state_t* state) {
     ConfigManager& config_mgr = ConfigManager::instance();
+    hydro_config_t config = config_mgr.getConfig();
     const setting_range_t& range = setting_ranges[current_editing_setting];
+    int current_value = get_setting_value(config, current_editing_setting);
 
     if (!edit_logged) {
+#ifdef TEST_MODE
+        // TEST_MODE: 串口LOG输出
         LOG_INFO("Interactive", "=== Editing: %s ===", setting_names[current_editing_setting]);
         LOG_INFO("Interactive", "Preview: %d %s", setting_preview_value, range.unit);
         LOG_INFO("Interactive", "Range: %d-%d, Step: %d", range.min, range.max, range.step);
         LOG_INFO("Interactive", "Rotate=Adjust, Click=Save, Double-Click=Cancel");
+#else
+        // 生产环境: 调用UI显示
+        ui_manager_show_setting_edit(setting_names[current_editing_setting],
+                                      current_value, setting_preview_value,
+                                      range.min, range.max, range.unit);
+#endif
         edit_logged = true;
     }
 
-    // Encoder rotation - adjust value
-    int8_t delta = input_manager_get_encoder_delta();
-    if (delta != 0) {
-        setting_preview_value += delta * range.step;
+    // Encoder rotation - batch consume all deltas and adjust value
+    int total_delta = 0;
+    int8_t delta;
+    while ((delta = input_manager_get_encoder_delta()) != 0) {
+        total_delta += delta;
+    }
+    if (total_delta != 0) {
+        setting_preview_value += total_delta * range.step;
         if (setting_preview_value < range.min) setting_preview_value = range.min;
         if (setting_preview_value > range.max) setting_preview_value = range.max;
-        LOG_INFO("Interactive", "Preview: %d %s", setting_preview_value, range.unit);
+        LOG_INFO("Interactive", "Preview: %d %s (delta=%d)", setting_preview_value, range.unit, total_delta);
         edit_logged = false;
+    }
+
+    // Long press - trigger full refresh
+    if (input_manager_get_button_long_pressed()) {
+        LOG_INFO("Interactive", "Long press detected - triggering full refresh");
+        ui_manager_trigger_full_refresh();
     }
 
     // Single click - save

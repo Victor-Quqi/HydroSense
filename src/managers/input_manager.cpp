@@ -16,19 +16,66 @@ static int encoder_counter = 0;
 static unsigned long last_debounce_time = 0;
 static const unsigned long debounce_delay = 50; // ms
 
-// --- 编码器增量事件（消费型API用） ---
-static int8_t encoder_delta = 0; // 旋转增量：+1=顺时针，-1=逆时针，0=无旋转
+// --- 编码器增量事件（消费型API用） - 中断安全的循环队列 ---
+#define ENCODER_QUEUE_SIZE 16
+static volatile int8_t encoder_queue[ENCODER_QUEUE_SIZE];
+static volatile uint8_t encoder_queue_head = 0;
+static volatile uint8_t encoder_queue_tail = 0;
+static volatile uint8_t encoder_queue_count = 0;
 
 // --- 按键状态变量 ---
 static int last_button_state = HIGH; // 用于检测抖动
 static int button_stable_state = HIGH; // 记录稳定的按键状态
+static unsigned long button_press_start_time = 0; // 记录按下开始时间（用于长按检测）
 
 // --- 按键事件（消费型API用） ---
 static bool button_clicked_flag = false; // 单击事件标志
 static bool button_double_clicked_flag = false; // 双击事件标志
+static bool button_long_pressed_flag = false; // 长按事件标志
 static unsigned long last_click_time = 0; // 上次单击时间
 static bool button_pending = false; // 等待确认是单击还是双击的pending状态
 
+// --- 中断安全的队列操作函数 ---
+static void IRAM_ATTR encoder_enqueue(int8_t delta) {
+    if (encoder_queue_count < ENCODER_QUEUE_SIZE) {
+        encoder_queue[encoder_queue_head] = delta;
+        encoder_queue_head = (encoder_queue_head + 1) % ENCODER_QUEUE_SIZE;
+        encoder_queue_count++;
+    }
+}
+
+static int8_t encoder_dequeue() {
+    if (encoder_queue_count == 0) {
+        return 0;
+    }
+    int8_t delta = encoder_queue[encoder_queue_tail];
+    encoder_queue_tail = (encoder_queue_tail + 1) % ENCODER_QUEUE_SIZE;
+    encoder_queue_count--;
+    return delta;
+}
+
+// --- 编码器中断服务程序 (ISR) ---
+static void IRAM_ATTR encoder_isr_handler() {
+    // 使用查找表进行编码器状态解码
+    static const int8_t lookup_table[] = { 0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0 };
+
+    uint8_t current_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
+
+    if (current_encoder_state != last_encoder_state) {
+        int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
+        encoder_counter += direction;
+
+        if (encoder_counter >= INPUT_ENCODER_THRESHOLD) {
+            encoder_enqueue(1); // 顺时针
+            encoder_counter = 0;
+        } else if (encoder_counter <= -INPUT_ENCODER_THRESHOLD) {
+            encoder_enqueue(-1); // 逆时针
+            encoder_counter = 0;
+        }
+
+        last_encoder_state = current_encoder_state;
+    }
+}
 
 void input_manager_init() {
     // 模式开关引脚初始化为上拉输入
@@ -43,6 +90,12 @@ void input_manager_init() {
 
     // 初始化编码器初始状态
     last_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
+
+    // 附加中断到编码器引脚（任何电平变化都触发）
+    attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_A), encoder_isr_handler, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_B), encoder_isr_handler, CHANGE);
+
+    LOG_INFO("InputManager", "Encoder interrupts attached to pins %d and %d", PIN_ENCODER_A, PIN_ENCODER_B);
 }
 
 system_mode_t input_manager_get_mode() {
@@ -65,27 +118,9 @@ system_mode_t input_manager_get_mode() {
 }
 
 void input_manager_loop() {
-    // --- 编码器旋转处理 (积分-阈值算法) ---
-    static const int8_t lookup_table[] = { 0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0 };
+    // 编码器旋转现在由中断处理，此处不再需要轮询
 
-    uint8_t current_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
-
-    if (current_encoder_state != last_encoder_state) {
-        int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
-        encoder_counter += direction;
-
-        if (encoder_counter >= INPUT_ENCODER_THRESHOLD) {
-            encoder_delta = 1; // 顺时针：设置增量为+1
-            encoder_counter = 0;
-        } else if (encoder_counter <= -INPUT_ENCODER_THRESHOLD) {
-            encoder_delta = -1; // 逆时针：设置增量为-1
-            encoder_counter = 0;
-        }
-
-        last_encoder_state = current_encoder_state;
-    }
-
-    // --- 编码器按键处理 (带消抖) ---
+    // --- 编码器按键处理 (带消抖 + 长按检测) ---
     int reading = digitalRead(PIN_ENCODER_SW);
 
     // 如果检测到电平变化，重置消抖计时器
@@ -98,8 +133,10 @@ void input_manager_loop() {
         // 并且当前的稳定读数与之前记录的稳定状态不同
         if (reading != button_stable_state) {
             button_stable_state = reading;
+
             // 如果这个新的稳定状态是"按下"
             if (button_stable_state == LOW) {
+                button_press_start_time = millis(); // 记录按下开始时间
                 unsigned long current_time = millis();
                 // 检测双击：如果当前是pending状态且在双击间隔内
                 if (button_pending && (current_time - last_click_time) < INPUT_DOUBLE_CLICK_INTERVAL_MS) {
@@ -115,6 +152,15 @@ void input_manager_loop() {
         }
     }
 
+    // 检测长按：如果按钮持续按下且超过阈值
+    if (button_stable_state == LOW && button_press_start_time > 0) {
+        if ((millis() - button_press_start_time) >= INPUT_LONG_PRESS_THRESHOLD_MS) {
+            button_long_pressed_flag = true; // 触发长按事件
+            button_pending = false; // 清除pending状态（长按不触发单击/双击）
+            button_press_start_time = 0; // 清零，避免重复触发
+        }
+    }
+
     // 检查pending超时：如果等待时间超过双击间隔，确认为单击
     if (button_pending && (millis() - last_click_time) >= INPUT_DOUBLE_CLICK_INTERVAL_MS) {
         button_clicked_flag = true; // 确认为单击
@@ -126,9 +172,8 @@ void input_manager_loop() {
 }
 
 int8_t input_manager_get_encoder_delta() {
-    int8_t delta = encoder_delta;
-    encoder_delta = 0; // 读取后清零（消费型）
-    return delta;
+    // 从中断安全的循环队列中取出一个增量值
+    return encoder_dequeue();
 }
 
 bool input_manager_get_button_clicked() {
@@ -147,11 +192,26 @@ bool input_manager_get_button_double_clicked() {
     return false;
 }
 
+bool input_manager_get_button_long_pressed() {
+    if (button_long_pressed_flag) {
+        button_long_pressed_flag = false; // 读取后清除标志（消费型）
+        return true;
+    }
+    return false;
+}
+
 void input_manager_clear_events() {
-    encoder_delta = 0;
+    // 清空中断队列
+    encoder_queue_head = 0;
+    encoder_queue_tail = 0;
+    encoder_queue_count = 0;
+
+    // 清空按键事件
     button_clicked_flag = false;
     button_double_clicked_flag = false;
+    button_long_pressed_flag = false;
     button_pending = false; // 也清除pending状态
     last_click_time = 0;
+    button_press_start_time = 0;
     encoder_counter = 0; // 也清零编码器累积值
 }

@@ -28,6 +28,12 @@ extern "C" {
 #define INPUT_DOUBLE_CLICK_INTERVAL_MS 233
 
 /**
+ * @brief 长按检测阈值 (ms)
+ * @details 按键持续按下超过此时间则判定为长按
+ */
+#define INPUT_LONG_PRESS_THRESHOLD_MS 1500
+
+/**
  * @brief 编码器去抖阈值
  * @details 累积增量超过此值才触发一次有效旋转事件
  */

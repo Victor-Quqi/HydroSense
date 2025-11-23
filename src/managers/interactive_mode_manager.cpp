@@ -11,11 +11,19 @@
 #include "interactive_mode/interactive_settings.h"
 #include "interactive_mode/interactive_watering.h"
 #include "interactive_mode/interactive_chat.h"
+#include "../ui/ui_manager.h"
+#include "../ui/display_manager.h"
+#include "power_manager.h"
+#include "../data/timing_constants.h"
+#include <Arduino.h>
 
 // Manager state
 static bool is_initialized = false;
 static interactive_state_t current_state = STATE_MAIN_MENU;
 static bool exit_requested = false;
+
+// Global flag for initial full refresh (defined here, declared in interactive_common.h)
+bool g_interactive_needs_initial_refresh = false;
 
 interactive_mode_result_t interactive_mode_manager_init(void) {
     LOG_INFO("Interactive", "Initializing interactive mode manager");
@@ -31,9 +39,36 @@ interactive_mode_result_t interactive_mode_manager_enter(void) {
     }
 
     LOG_INFO("Interactive", "Entering interactive mode");
+
+    // 1. Enable screen power before any display operations
+    power_result_t power_result = power_screen_enable(true);
+    if (power_result != POWER_OK) {
+        LOG_ERROR("Interactive", "Failed to enable screen power (error %d)", power_result);
+        return INTERACTIVE_MODE_ERR_NOT_INITIALIZED;
+    }
+    LOG_DEBUG("Interactive", "Screen power enabled, waiting for stabilization");
+
+    // 2. Wait for power to stabilize
+    delay(POWER_STABILIZATION_DELAY_MS);
+
+    // 3. Initialize display manager (will check s_initialized internally)
+    display_result_t display_result = display_manager_init();
+    if (display_result != DISPLAY_OK) {
+        LOG_ERROR("Interactive", "Failed to initialize display (error %d)", display_result);
+        return INTERACTIVE_MODE_ERR_NOT_INITIALIZED;
+    }
+    LOG_DEBUG("Interactive", "Display manager ready");
+
+    // 4. Clear input events and setup state
     input_manager_clear_events();
     current_state = STATE_MAIN_MENU;
     exit_requested = false;
+
+    // 5. Set flag for initial full refresh
+    g_interactive_needs_initial_refresh = true;
+
+    // 移除立即全刷：避免在屏幕可能未稳定时操作
+    // 全刷将在第一次显示主菜单时触发（interactive_main_menu_handle）
 
     // Initialize first state
     interactive_main_menu_enter();

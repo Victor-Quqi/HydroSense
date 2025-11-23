@@ -23,7 +23,7 @@
 /* Enable built-in fonts */
 #define LV_USE_FONT_DEJAVU_16_PERSIAN_HEBREW 1
 #define LV_USE_FONT_MONTSERRAT_14 1
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+#define LV_FONT_DEFAULT &lv_font_montserrat_14  // Default English font
 
 /*================
  * THEME USAGE

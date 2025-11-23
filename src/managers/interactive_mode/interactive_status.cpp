@@ -5,6 +5,7 @@
 
 #include "interactive_status.h"
 #include "interactive_common.h"
+#include "../../ui/ui_manager.h"
 
 static bool status_logged = false;
 
@@ -33,6 +34,15 @@ interactive_state_t interactive_status_handle(interactive_state_t* state) {
             if (humidity_pct > 100.0f) humidity_pct = 100.0f;
         }
 
+        // Calculate threshold percentage
+        float threshold_pct = 0.0f;
+        if (config.watering.humidity_dry > config.watering.humidity_wet) {
+            threshold_pct = 100.0f - ((config.watering.threshold - config.watering.humidity_wet) * 100.0f) /
+                           (config.watering.humidity_dry - config.watering.humidity_wet);
+            if (threshold_pct < 0.0f) threshold_pct = 0.0f;
+            if (threshold_pct > 100.0f) threshold_pct = 100.0f;
+        }
+
         // Get network status
         WiFiManager& wifi = WiFiManager::instance();
         bool wifi_connected = wifi.isConnected();
@@ -40,7 +50,8 @@ interactive_state_t interactive_status_handle(interactive_state_t* state) {
         TimeManager& time_mgr = TimeManager::instance();
         bool time_synced = time_mgr.isTimeSynced();
 
-        // Log status
+#ifdef TEST_MODE
+        // TEST_MODE: 串口LOG输出
         LOG_INFO("Interactive", "=== System Status ===");
         LOG_INFO("Interactive", "Sensor Data:");
         LOG_INFO("Interactive", "  Humidity: %.0f ADC (%.0f%%)", humidity_raw, humidity_pct);
@@ -57,6 +68,13 @@ interactive_state_t interactive_status_handle(interactive_state_t* state) {
         LOG_INFO("Interactive", "  Time: %s", time_synced ? "Synced" : "Not synced");
         LOG_INFO("Interactive", "");
         LOG_INFO("Interactive", "Press DOUBLE CLICK to return");
+#else
+        // 生产环境: 调用UI显示
+        ui_manager_show_status(humidity_pct, battery_voltage,
+                               threshold_pct, config.watering.power,
+                               config.watering.duration_ms, config.watering.min_interval_s,
+                               wifi_connected, time_synced);
+#endif
 
         status_logged = true;
     }

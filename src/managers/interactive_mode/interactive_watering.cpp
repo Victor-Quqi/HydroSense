@@ -5,6 +5,7 @@
 
 #include "interactive_watering.h"
 #include "interactive_common.h"
+#include "../../ui/ui_manager.h"
 
 typedef enum {
     WATERING_CONFIRM,
@@ -41,11 +42,26 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
                 watering_duration_ms = config.watering.duration_ms;
                 sensor_manager_get_humidity(&watering_humidity_before);
 
+                // Calculate humidity percentage
+                float humidity_pct = 0.0f;
+                if (config.watering.humidity_dry > config.watering.humidity_wet) {
+                    humidity_pct = 100.0f - ((watering_humidity_before - config.watering.humidity_wet) * 100.0f) /
+                                  (config.watering.humidity_dry - config.watering.humidity_wet);
+                    if (humidity_pct < 0.0f) humidity_pct = 0.0f;
+                    if (humidity_pct > 100.0f) humidity_pct = 100.0f;
+                }
+
+#ifdef TEST_MODE
+                // TEST_MODE: 串口LOG输出
                 LOG_INFO("Interactive", "=== Watering Confirmation ===");
                 LOG_INFO("Interactive", "Pump Power: %d/255", watering_power);
                 LOG_INFO("Interactive", "Duration: %dms", watering_duration_ms);
                 LOG_INFO("Interactive", "Current Humidity: %.2f ADC", watering_humidity_before);
                 LOG_INFO("Interactive", "Press SINGLE CLICK to start, DOUBLE CLICK to cancel");
+#else
+                // 生产环境: 调用UI显示
+                ui_manager_show_watering_confirm(watering_power, watering_duration_ms, humidity_pct);
+#endif
                 confirm_logged = true;
             }
 
@@ -73,13 +89,31 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
             bool pump_running = actuator_manager_is_pump_running();
 
             if (pump_running) {
+                uint32_t elapsed = millis() - watering_start_time;
+
+                // Calculate humidity percentage for UI
+                float humidity_pct = 0.0f;
+                ConfigManager& config_mgr = ConfigManager::instance();
+                hydro_config_t config = config_mgr.getConfig();
+                if (config.watering.humidity_dry > config.watering.humidity_wet) {
+                    humidity_pct = 100.0f - ((watering_humidity_before - config.watering.humidity_wet) * 100.0f) /
+                                  (config.watering.humidity_dry - config.watering.humidity_wet);
+                    if (humidity_pct < 0.0f) humidity_pct = 0.0f;
+                    if (humidity_pct > 100.0f) humidity_pct = 100.0f;
+                }
+
+#ifdef TEST_MODE
+                // TEST_MODE: 串口LOG输出（仅一次）
                 if (!progress_logged) {
-                    uint32_t elapsed = millis() - watering_start_time;
                     uint8_t progress = (elapsed * 100) / watering_duration_ms;
                     if (progress > 100) progress = 100;
                     LOG_INFO("Interactive", "Watering in progress... %d%%", progress);
                     progress_logged = true;
                 }
+#else
+                // 生产环境: 每次循环更新UI（墨水屏可能不会频繁刷新）
+                ui_manager_show_watering_progress(elapsed, watering_duration_ms, humidity_pct);
+#endif
             } else {
                 LOG_INFO("Interactive", "Watering completed");
                 sensor_manager_get_humidity(&watering_humidity_after);
@@ -93,12 +127,36 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
 
         case WATERING_COMPLETE: {
             if (!complete_logged) {
+                // Calculate humidity percentages for UI
+                ConfigManager& config_mgr = ConfigManager::instance();
+                hydro_config_t config = config_mgr.getConfig();
+
+                float humidity_before_pct = 0.0f;
+                float humidity_after_pct = 0.0f;
+                if (config.watering.humidity_dry > config.watering.humidity_wet) {
+                    humidity_before_pct = 100.0f - ((watering_humidity_before - config.watering.humidity_wet) * 100.0f) /
+                                         (config.watering.humidity_dry - config.watering.humidity_wet);
+                    if (humidity_before_pct < 0.0f) humidity_before_pct = 0.0f;
+                    if (humidity_before_pct > 100.0f) humidity_before_pct = 100.0f;
+
+                    humidity_after_pct = 100.0f - ((watering_humidity_after - config.watering.humidity_wet) * 100.0f) /
+                                        (config.watering.humidity_dry - config.watering.humidity_wet);
+                    if (humidity_after_pct < 0.0f) humidity_after_pct = 0.0f;
+                    if (humidity_after_pct > 100.0f) humidity_after_pct = 100.0f;
+                }
+
+#ifdef TEST_MODE
+                // TEST_MODE: 串口LOG输出
                 LOG_INFO("Interactive", "=== Watering Result ===");
                 LOG_INFO("Interactive", "Humidity BEFORE: %.2f ADC", watering_humidity_before);
                 LOG_INFO("Interactive", "Humidity AFTER: %.2f ADC", watering_humidity_after);
                 LOG_INFO("Interactive", "Change: %.2f ADC",
                          watering_humidity_after - watering_humidity_before);
                 LOG_INFO("Interactive", "Press DOUBLE CLICK to return to main menu");
+#else
+                // 生产环境: 调用UI显示
+                ui_manager_show_watering_result(humidity_before_pct, humidity_after_pct);
+#endif
                 complete_logged = true;
             }
 

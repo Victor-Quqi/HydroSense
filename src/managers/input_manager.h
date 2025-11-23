@@ -59,6 +59,13 @@ bool input_manager_get_button_clicked();
 bool input_manager_get_button_double_clicked();
 
 /**
+ * @brief 检查按键是否被长按（消费型API）
+ * @details 如果检测到长按事件（按键持续按下超过长按阈值），返回true并自动清除标志。
+ * @return bool true=检测到长按事件，false=无长按事件
+ */
+bool input_manager_get_button_long_pressed();
+
+/**
  * @brief 清除所有累积的编码器和按键状态
  * @details 用于状态切换时避免累积值干扰，手动调用清零。
  */

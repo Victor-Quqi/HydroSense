@@ -17,6 +17,9 @@
 #include "../../services/time_manager.h"
 #include <Arduino.h>
 
+// Global flag for initial full refresh when entering Interactive mode
+extern bool g_interactive_needs_initial_refresh;
+
 /**
  * @brief Switch to a new state and clear input events
  * @param new_state Target state

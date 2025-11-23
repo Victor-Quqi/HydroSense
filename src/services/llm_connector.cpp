@@ -47,20 +47,21 @@ bool LLMConnector::init() {
 
 const char* LLMConnector::getSystemPrompt(bool with_options) {
     if (with_options) {
-        // 要求生成选项的系统提示词
-        return "你是一个智能植物监测系统中的植物助手。"
-               "你可以感知土壤湿度、环境温度等传感器数据，并根据这些数据与用户对话。"
-               "请用简洁、友好的语气回答用户的问题，就像植物在说话一样。"
-               "回答限制在50字以内。\n\n"
-               "重要：你必须返回JSON格式的响应，格式为：\n"
-               "{\"response\": \"你的回复内容\", \"options\": [\"选项1\", \"选项2\", \"选项3\"]}\n"
-               "其中options是3个用户可以继续对话的选项，每个选项15字以内。";
+        // System prompt requesting options
+        return "You are a plant assistant in a smart plant monitoring system. "
+               "You can sense soil moisture, temperature, and other sensor data, and chat with users based on this data. "
+               "Please respond in a concise and friendly tone, as if the plant is speaking. "
+               "Keep responses under 50 words.\n\n"
+               "IMPORTANT: You must return a JSON response in the following format:\n"
+               "{\"response\": \"your response here\", \"options\": [\"option 1\", \"option 2\", \"option 3\"]}\n"
+               "The options array should contain 3 conversation choices for the user (max 15 words each). "
+               "You do NOT have the ability to water or adjust settings, so don't suggest options that imply you can.";
     } else {
-        // 普通对话提示词
-        return "你是一个智能植物监测系统中的植物助手。"
-               "你可以感知土壤湿度、环境温度等传感器数据，并根据这些数据与用户对话。"
-               "请用简洁、友好的语气回答用户的问题，就像植物在说话一样。"
-               "回答限制在50字以内。";
+        // Regular conversation prompt
+        return "You are a plant assistant in a smart plant monitoring system. "
+               "You can sense soil moisture, temperature, and other sensor data, and chat with users based on this data. "
+               "Please respond in a concise and friendly tone, as if the plant is speaking. "
+               "Keep responses under 50 words.";
     }
 }
 
@@ -76,31 +77,90 @@ String LLMConnector::buildChatRequest(const char* user_message, bool use_history
     // 添加消息
     JsonArray messages = doc["messages"].to<JsonArray>();
 
-    // 系统提示词
+    // ===== 1. 系统提示词 =====
     JsonObject system_msg = messages.add<JsonObject>();
     system_msg["role"] = "system";
-    system_msg["content"] = getSystemPrompt(use_history);  // 使用历史时需要生成选项
+    system_msg["content"] = getSystemPrompt(use_history);
 
-    // 添加传感器数据上下文
+    // ===== 2. 系统状态（只发一次，最新）=====
     sensor_data_t sensor_data;
     sensor_manager_read_all(&sensor_data);
-    char context[256];
-    snprintf(context, sizeof(context),
-             "当前传感器数据 - 土壤湿度ADC: %d, 电池电压: %.2fV, 时间: %s",
-             sensor_data.soil_moisture,
+
+    // 计算湿度百分比
+    float humidity_pct = 0.0f;
+    if (config.watering.humidity_dry > config.watering.humidity_wet) {
+        humidity_pct = 100.0f - ((sensor_data.soil_moisture - config.watering.humidity_wet) * 100.0f) /
+                      (config.watering.humidity_dry - config.watering.humidity_wet);
+        if (humidity_pct < 0.0f) humidity_pct = 0.0f;
+        if (humidity_pct > 100.0f) humidity_pct = 100.0f;
+    }
+
+    // 计算阈值百分比
+    float threshold_pct = 0.0f;
+    if (config.watering.humidity_dry > config.watering.humidity_wet) {
+        threshold_pct = 100.0f - ((config.watering.threshold - config.watering.humidity_wet) * 100.0f) /
+                       (config.watering.humidity_dry - config.watering.humidity_wet);
+        if (threshold_pct < 0.0f) threshold_pct = 0.0f;
+        if (threshold_pct > 100.0f) threshold_pct = 100.0f;
+    }
+
+    // 获取网络状态
+    WiFiManager& wifi = WiFiManager::instance();
+    bool wifi_connected = wifi.isConnected();
+    const char* ssid = wifi_connected ? WiFi.SSID().c_str() : "未连接";
+
+    // 获取时间
+    TimeManager& time_mgr = TimeManager::instance();
+    bool time_synced = time_mgr.isTimeSynced();
+    String time_str;
+    if (time_synced) {
+        time_t now = time_mgr.getTimestamp();
+        struct tm timeinfo;
+        localtime_r(&now, &timeinfo);
+        char time_buf[32];
+        strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+        time_str = String(time_buf);
+    } else {
+        time_str = "未同步";
+    }
+
+    // 构建系统状态字符串
+    char status[512];
+    snprintf(status, sizeof(status),
+             "系统状态 -\n"
+             "传感器: 湿度%d ADC (%.0f%%), 电池%.2fV\n"
+             "配置: 阈值%d (%.0f%%), 功率%d, 时长%dms, 间隔%ds, 范围%d-%d\n"
+             "网络: WiFi=%s(%s), 时间=%s",
+             sensor_data.soil_moisture, humidity_pct,
              sensor_data.battery_voltage,
-             TimeManager::instance().isTimeSynced() ? "已同步" : "未同步");
+             config.watering.threshold, threshold_pct,
+             config.watering.power,
+             config.watering.duration_ms,
+             config.watering.min_interval_s,
+             config.watering.humidity_wet,
+             config.watering.humidity_dry,
+             wifi_connected ? "已连接" : "未连接",
+             ssid,
+             time_str.c_str());
 
-    JsonObject context_msg = messages.add<JsonObject>();
-    context_msg["role"] = "system";
-    context_msg["content"] = context;
+    JsonObject status_msg = messages.add<JsonObject>();
+    status_msg["role"] = "system";
+    status_msg["content"] = status;
 
-    // 如果使用历史，添加历史对话
+    // ===== 3. 日志摘要（只发一次，最新20条）=====
+    String recent_logs = log_manager_get_recent_logs(20);
+    String log_summary = "最近系统日志:\n" + recent_logs;
+
+    JsonObject log_msg = messages.add<JsonObject>();
+    log_msg["role"] = "system";
+    log_msg["content"] = log_summary;
+
+    // ===== 4. 对话历史（如果use_history）=====
     if (use_history) {
         HistoryManager::instance().buildContextMessages(messages);
     }
 
-    // 用户消息
+    // ===== 5. 当前用户消息 =====
     JsonObject user_msg = messages.add<JsonObject>();
     user_msg["role"] = "user";
     user_msg["content"] = user_message;
@@ -154,7 +214,7 @@ bool LLMConnector::parseStructuredResponse(const String& response_json,
         return false;
     }
 
-    LOG_INFO("LLMConnector", "Raw content: %s", content);
+    LOG_DEBUG("LLMConnector", "Raw content: %s", content);
 
     // 解析content中的JSON结构
     JsonDocument content_doc;
@@ -239,7 +299,7 @@ bool LLMConnector::chat(const char* user_message, char* response_buffer, size_t 
     }
     url += "chat/completions";
 
-    LOG_INFO("LLMConnector", "Connecting to: %s", url.c_str());
+    LOG_DEBUG("LLMConnector", "Connecting to: %s", url.c_str());
 
     if (!http.begin(client, url)) {
         snprintf(m_last_error, sizeof(m_last_error), "HTTP begin failed");
@@ -260,7 +320,7 @@ bool LLMConnector::chat(const char* user_message, char* response_buffer, size_t 
 
     // 构建请求体（不使用历史）
     String request_json = buildChatRequest(user_message, false);
-    LOG_INFO("LLMConnector", "Request size: %d bytes", request_json.length());
+    LOG_DEBUG("LLMConnector", "Request size: %d bytes", request_json.length());
 
     // 发送POST请求
     m_state = LLMState::SENDING;
@@ -279,7 +339,7 @@ bool LLMConnector::chat(const char* user_message, char* response_buffer, size_t 
     String response_json = http.getString();
     http.end();
 
-    LOG_INFO("LLMConnector", "Response size: %d bytes", response_json.length());
+    LOG_DEBUG("LLMConnector", "Response size: %d bytes", response_json.length());
 
     // 解析响应
     if (!parseChatResponse(response_json, response_buffer, buffer_size)) {
@@ -327,7 +387,7 @@ bool LLMConnector::chatWithOptions(const char* user_message,
     }
     url += "chat/completions";
 
-    LOG_INFO("LLMConnector", "Connecting to: %s", url.c_str());
+    LOG_DEBUG("LLMConnector", "Connecting to: %s", url.c_str());
 
     if (!http.begin(client, url)) {
         snprintf(m_last_error, sizeof(m_last_error), "HTTP begin failed");
@@ -348,7 +408,7 @@ bool LLMConnector::chatWithOptions(const char* user_message,
 
     // 构建请求体（使用历史）
     String request_json = buildChatRequest(user_message, true);
-    LOG_INFO("LLMConnector", "Request size: %d bytes", request_json.length());
+    LOG_DEBUG("LLMConnector", "Request size: %d bytes", request_json.length());
 
     // 发送POST请求
     m_state = LLMState::SENDING;
@@ -367,7 +427,7 @@ bool LLMConnector::chatWithOptions(const char* user_message,
     String response_json = http.getString();
     http.end();
 
-    LOG_INFO("LLMConnector", "Response size: %d bytes", response_json.length());
+    LOG_DEBUG("LLMConnector", "Response size: %d bytes", response_json.length());
 
     // 解析结构化响应
     if (!parseStructuredResponse(response_json, response_buffer, response_size, options, option_count)) {
