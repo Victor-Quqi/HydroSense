@@ -16,9 +16,19 @@ static int encoder_counter = 0;
 static unsigned long last_debounce_time = 0;
 static const unsigned long debounce_delay = 50; // ms
 
+// --- 编码器增量事件（消费型API用） ---
+static int8_t encoder_delta = 0; // 旋转增量：+1=顺时针，-1=逆时针，0=无旋转
+
 // --- 按键状态变量 ---
 static int last_button_state = HIGH; // 用于检测抖动
 static int button_stable_state = HIGH; // 记录稳定的按键状态
+
+// --- 按键事件（消费型API用） ---
+static bool button_clicked_flag = false; // 单击事件标志
+static bool button_double_clicked_flag = false; // 双击事件标志
+static unsigned long last_click_time = 0; // 上次单击时间
+static const unsigned long double_click_interval = 233; // 双击间隔阈值（ms）
+static bool button_pending = false; // 等待确认是单击还是双击的pending状态
 
 
 void input_manager_init() {
@@ -58,21 +68,21 @@ system_mode_t input_manager_get_mode() {
 void input_manager_loop() {
     // --- 编码器旋转处理 (积分-阈值算法) ---
     static const int8_t lookup_table[] = { 0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0 };
-    
+
     uint8_t current_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
 
     if (current_encoder_state != last_encoder_state) {
         int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
         encoder_counter += direction;
-        
+
         if (encoder_counter >= ENCODER_THRESHOLD) {
-            LOG_DEBUG("Input", "Encoder rotated: CW");
+            encoder_delta = 1; // 顺时针：设置增量为+1
             encoder_counter = 0;
         } else if (encoder_counter <= -ENCODER_THRESHOLD) {
-            LOG_DEBUG("Input", "Encoder rotated: CCW");
+            encoder_delta = -1; // 逆时针：设置增量为-1
             encoder_counter = 0;
         }
-        
+
         last_encoder_state = current_encoder_state;
     }
 
@@ -89,13 +99,60 @@ void input_manager_loop() {
         // 并且当前的稳定读数与之前记录的稳定状态不同
         if (reading != button_stable_state) {
             button_stable_state = reading;
-            // 如果这个新的稳定状态是“按下”
+            // 如果这个新的稳定状态是"按下"
             if (button_stable_state == LOW) {
-                LOG_DEBUG("Input", "Encoder button clicked.");
+                unsigned long current_time = millis();
+                // 检测双击：如果当前是pending状态且在双击间隔内
+                if (button_pending && (current_time - last_click_time) < double_click_interval) {
+                    button_double_clicked_flag = true; // 确认为双击
+                    button_pending = false; // 清除pending状态
+                    last_click_time = 0;
+                } else {
+                    // 第1次点击：进入pending状态，等待可能的第2次点击
+                    button_pending = true;
+                    last_click_time = current_time;
+                }
             }
         }
     }
 
+    // 检查pending超时：如果等待时间超过双击间隔，确认为单击
+    if (button_pending && (millis() - last_click_time) >= double_click_interval) {
+        button_clicked_flag = true; // 确认为单击
+        button_pending = false; // 清除pending状态
+    }
+
     // 始终更新上一次的读数，用于检测下一次变化
     last_button_state = reading;
+}
+
+int8_t input_manager_get_encoder_delta() {
+    int8_t delta = encoder_delta;
+    encoder_delta = 0; // 读取后清零（消费型）
+    return delta;
+}
+
+bool input_manager_get_button_clicked() {
+    if (button_clicked_flag) {
+        button_clicked_flag = false; // 读取后清除标志（消费型）
+        return true;
+    }
+    return false;
+}
+
+bool input_manager_get_button_double_clicked() {
+    if (button_double_clicked_flag) {
+        button_double_clicked_flag = false; // 读取后清除标志（消费型）
+        return true;
+    }
+    return false;
+}
+
+void input_manager_clear_events() {
+    encoder_delta = 0;
+    button_clicked_flag = false;
+    button_double_clicked_flag = false;
+    button_pending = false; // 也清除pending状态
+    last_click_time = 0;
+    encoder_counter = 0; // 也清零编码器累积值
 }

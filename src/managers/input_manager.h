@@ -37,4 +37,31 @@ system_mode_t input_manager_get_mode();
  */
 void input_manager_loop();
 
+/**
+ * @brief 获取旋转编码器的增量值（消费型API）
+ * @details 返回增量后自动清零。顺时针为正，逆时针为负。
+ * @return int8_t 旋转增量（范围：-1, 0, +1）
+ */
+int8_t input_manager_get_encoder_delta();
+
+/**
+ * @brief 检查按键是否被单击（消费型API）
+ * @details 如果检测到单击事件，返回true并自动清除标志。
+ * @return bool true=检测到单击事件，false=无单击事件
+ */
+bool input_manager_get_button_clicked();
+
+/**
+ * @brief 检查按键是否被双击（消费型API）
+ * @details 如果检测到双击事件（两次点击间隔<双击间隔阈值），返回true并自动清除标志。
+ * @return bool true=检测到双击事件，false=无双击事件
+ */
+bool input_manager_get_button_double_clicked();
+
+/**
+ * @brief 清除所有累积的编码器和按键状态
+ * @details 用于状态切换时避免累积值干扰，手动调用清零。
+ */
+void input_manager_clear_events();
+
 #endif // INPUT_MANAGER_H

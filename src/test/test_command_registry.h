@@ -4,6 +4,36 @@
  * @details
  *   提供一个中心化的机制来注册和处理CLI命令。
  *   使用函数指针表将命令字符串映射到具体的处理函数，以实现解耦。
+ *
+ * ## 命令风格规范
+ *
+ * ### 1. 命令命名风格
+ * - **使用单个主命令 + 子命令的模式**
+ * - 主命令：功能模块名（如 `wifi`, `config`, `input`）
+ * - 子命令：具体操作（如 `status`, `connect`, `poll`）
+ *
+ * ### 2. 命令注册风格
+ * ```c
+ * // 单个命令入口，内部分发子命令
+ * static const CommandRegistryEntry xxx_commands[] = {
+ *     {"wifi", handle_wifi, "Manages WiFi. Usage: wifi <status|connect|disconnect>"}
+ * };
+ * ```
+ *
+ * ### 3. 命令处理函数风格
+ * ```c
+ * void handle_wifi(const char* args) {
+ *     char action[16];
+ *     sscanf(args, "%15s", action);
+ *
+ *     if (strcmp(action, "status") == 0) {
+ *         handle_wifi_status();  // 内部子函数处理具体逻辑
+ *     } else if (strcmp(action, "connect") == 0) {
+ *         handle_wifi_connect();
+ *     }
+ *     // ...
+ * }
+ * ```
  */
 
 #ifndef TEST_COMMAND_REGISTRY_H
