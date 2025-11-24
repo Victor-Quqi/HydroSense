@@ -28,7 +28,8 @@ extern bool g_interactive_needs_initial_refresh;
 static inline void interactive_switch_state(interactive_state_t new_state,
                                              interactive_state_t* state_var) {
     *state_var = new_state;
-    input_manager_clear_events();  // Clear residual events
+    // 只清除按键事件，保留编码器队列（避免丢失旋转事件）
+    input_manager_clear_button_events();
 }
 
 #endif // INTERACTIVE_COMMON_H

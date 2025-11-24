@@ -124,6 +124,12 @@ void ui_manager_show_watering_progress(uint32_t elapsed_ms, uint32_t total_ms,
                                         float humidity_before);
 
 /**
+ * @brief 重置浇水进度界面状态
+ * @details 在退出浇水界面时调用，重置静态对象指针，下次进入时重新创建UI
+ */
+void ui_manager_reset_watering_progress();
+
+/**
  * @brief 显示浇水结果界面
  * @param humidity_before 浇水前湿度
  * @param humidity_after 浇水后湿度

@@ -25,7 +25,7 @@ extern "C" {
  * @brief 双击检测时间窗口 (ms)
  * @details 两次单击之间的最大间隔，超过此时间则判定为单击
  */
-#define INPUT_DOUBLE_CLICK_INTERVAL_MS 233
+#define INPUT_DOUBLE_CLICK_INTERVAL_MS 325
 
 /**
  * @brief 长按检测阈值 (ms)
@@ -114,6 +114,16 @@ extern "C" {
  * @details 关闭外设前的安全延迟
  */
 #define POWER_SHUTDOWN_DELAY_MS 50
+
+// =============================================================================
+// Display Timing Constants
+// =============================================================================
+
+/**
+ * @brief 关机屏幕刷新超时时间 (ms)
+ * @details E-paper全屏刷新通常需要2-4秒，设置5秒超时作为安全裕度
+ */
+#define DISPLAY_SHUTDOWN_REFRESH_TIMEOUT_MS 5000
 
 #ifdef __cplusplus
 }

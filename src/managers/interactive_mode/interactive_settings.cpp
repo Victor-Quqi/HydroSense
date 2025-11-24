@@ -6,6 +6,7 @@
 #include "interactive_settings.h"
 #include "interactive_common.h"
 #include "../../ui/ui_manager.h"
+#include "../../ui/display_manager.h"
 
 // Setting item enumeration
 typedef enum {
@@ -110,6 +111,10 @@ interactive_state_t interactive_settings_handle(interactive_state_t* state) {
                              settings_menu_index, "[Click=Edit DblClick=Back]");
 #endif
         settings_logged = true;
+#ifndef TEST_MODE
+        // Trigger partial refresh after updating menu
+        display_manager_refresh(false);
+#endif
     }
 
     // Encoder rotation - batch consume all deltas
@@ -127,7 +132,9 @@ interactive_state_t interactive_settings_handle(interactive_state_t* state) {
     // Long press - trigger full refresh
     if (input_manager_get_button_long_pressed()) {
         LOG_INFO("Interactive", "Long press detected - triggering full refresh");
+#ifndef TEST_MODE
         ui_manager_trigger_full_refresh();
+#endif
     }
 
     // Single click - enter edit mode
@@ -194,7 +201,9 @@ interactive_state_t interactive_setting_edit_handle(interactive_state_t* state) 
     // Long press - trigger full refresh
     if (input_manager_get_button_long_pressed()) {
         LOG_INFO("Interactive", "Long press detected - triggering full refresh");
+#ifndef TEST_MODE
         ui_manager_trigger_full_refresh();
+#endif
     }
 
     // Single click - save

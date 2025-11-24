@@ -9,19 +9,25 @@
 #include "managers/log_manager.h"
 #include "data/timing_constants.h"
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+// --- FreeRTOS任务句柄 ---
+static TaskHandle_t s_encoder_task_handle = NULL;
+static portMUX_TYPE s_encoder_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // --- 旋转编码器状态变量 ---
-static uint8_t last_encoder_state = 0;
-static int encoder_counter = 0;
+static volatile uint8_t last_encoder_state = 0;
+static volatile int encoder_counter = 0;
 static unsigned long last_debounce_time = 0;
 static const unsigned long debounce_delay = 50; // ms
 
-// --- 编码器增量事件（消费型API用） - 中断安全的循环队列 ---
+// --- 编码器增量事件（消费型API用） - 循环队列 ---
 #define ENCODER_QUEUE_SIZE 16
-static volatile int8_t encoder_queue[ENCODER_QUEUE_SIZE];
-static volatile uint8_t encoder_queue_head = 0;
-static volatile uint8_t encoder_queue_tail = 0;
-static volatile uint8_t encoder_queue_count = 0;
+static int8_t encoder_queue[ENCODER_QUEUE_SIZE];
+static uint8_t encoder_queue_head = 0;
+static uint8_t encoder_queue_tail = 0;
+static uint8_t encoder_queue_count = 0;
 
 // --- 按键状态变量 ---
 static int last_button_state = HIGH; // 用于检测抖动
@@ -35,45 +41,65 @@ static bool button_long_pressed_flag = false; // 长按事件标志
 static unsigned long last_click_time = 0; // 上次单击时间
 static bool button_pending = false; // 等待确认是单击还是双击的pending状态
 
-// --- 中断安全的队列操作函数 ---
-static void IRAM_ATTR encoder_enqueue(int8_t delta) {
+// --- 队列操作函数 ---
+static void encoder_enqueue(int8_t delta) {
+    portENTER_CRITICAL(&s_encoder_mux);
     if (encoder_queue_count < ENCODER_QUEUE_SIZE) {
         encoder_queue[encoder_queue_head] = delta;
         encoder_queue_head = (encoder_queue_head + 1) % ENCODER_QUEUE_SIZE;
         encoder_queue_count++;
     }
+    portEXIT_CRITICAL(&s_encoder_mux);
+    // 队列满时，静默丢弃（避免日志干扰性能）
 }
 
 static int8_t encoder_dequeue() {
+    portENTER_CRITICAL(&s_encoder_mux);
     if (encoder_queue_count == 0) {
+        portEXIT_CRITICAL(&s_encoder_mux);
         return 0;
     }
     int8_t delta = encoder_queue[encoder_queue_tail];
     encoder_queue_tail = (encoder_queue_tail + 1) % ENCODER_QUEUE_SIZE;
     encoder_queue_count--;
+    portEXIT_CRITICAL(&s_encoder_mux);
     return delta;
 }
 
-// --- 编码器中断服务程序 (ISR) ---
-static void IRAM_ATTR encoder_isr_handler() {
+// --- 编码器轮询任务 (FreeRTOS) ---
+static void encoder_polling_task(void* parameter) {
     // 使用查找表进行编码器状态解码
     static const int8_t lookup_table[] = { 0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0 };
 
-    uint8_t current_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
+    while (true) {
+        uint8_t current_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
 
-    if (current_encoder_state != last_encoder_state) {
-        int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
-        encoder_counter += direction;
+        if (current_encoder_state != last_encoder_state) {
+            int8_t direction = lookup_table[(last_encoder_state << 2) | current_encoder_state];
 
-        if (encoder_counter >= INPUT_ENCODER_THRESHOLD) {
-            encoder_enqueue(1); // 顺时针
-            encoder_counter = 0;
-        } else if (encoder_counter <= -INPUT_ENCODER_THRESHOLD) {
-            encoder_enqueue(-1); // 逆时针
-            encoder_counter = 0;
+            // 在临界区内完成counter的读取、判断、清零，避免竞态条件
+            int8_t event = 0;
+            portENTER_CRITICAL(&s_encoder_mux);
+            encoder_counter += direction;
+            if (encoder_counter >= INPUT_ENCODER_THRESHOLD) {
+                event = 1;
+                encoder_counter = 0;
+            } else if (encoder_counter <= -INPUT_ENCODER_THRESHOLD) {
+                event = -1;
+                encoder_counter = 0;
+            }
+            portEXIT_CRITICAL(&s_encoder_mux);
+
+            // 在临界区外入队（enqueue内部有自己的临界区保护）
+            if (event != 0) {
+                encoder_enqueue(event);
+            }
+
+            last_encoder_state = current_encoder_state;
         }
 
-        last_encoder_state = current_encoder_state;
+        // 短延迟轮询：足够快捕获事件，又不会阻塞其他任务
+        vTaskDelay(1);  // 1 tick ≈ 1ms (configTICK_RATE_HZ = 1000)
     }
 }
 
@@ -91,11 +117,21 @@ void input_manager_init() {
     // 初始化编码器初始状态
     last_encoder_state = (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
 
-    // 附加中断到编码器引脚（任何电平变化都触发）
-    attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_A), encoder_isr_handler, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN_ENCODER_B), encoder_isr_handler, CHANGE);
+    // 创建高优先级编码器轮询任务
+    BaseType_t task_created = xTaskCreate(
+        encoder_polling_task,
+        "EncoderPoll",
+        2048,  // Stack size
+        NULL,
+        configMAX_PRIORITIES - 1,  // 高优先级
+        &s_encoder_task_handle
+    );
 
-    LOG_INFO("InputManager", "Encoder interrupts attached to pins %d and %d", PIN_ENCODER_A, PIN_ENCODER_B);
+    if (task_created != pdPASS) {
+        LOG_ERROR("InputManager", "Failed to create encoder polling task");
+    } else {
+        LOG_INFO("InputManager", "Input manager initialized (FreeRTOS task mode)");
+    }
 }
 
 system_mode_t input_manager_get_mode() {
@@ -118,7 +154,7 @@ system_mode_t input_manager_get_mode() {
 }
 
 void input_manager_loop() {
-    // 编码器旋转现在由中断处理，此处不再需要轮询
+    // --- 编码器旋转由FreeRTOS任务处理，此处不再轮询 ---
 
     // --- 编码器按键处理 (带消抖 + 长按检测) ---
     int reading = digitalRead(PIN_ENCODER_SW);
@@ -161,10 +197,13 @@ void input_manager_loop() {
         }
     }
 
-    // 检查pending超时：如果等待时间超过双击间隔，确认为单击
-    if (button_pending && (millis() - last_click_time) >= INPUT_DOUBLE_CLICK_INTERVAL_MS) {
-        button_clicked_flag = true; // 确认为单击
-        button_pending = false; // 清除pending状态
+    // 检查pending超时：仅在按钮已经松开时才确认为单击
+    // 这样可以避免在用户长按过程中误触发单击事件
+    if (button_pending && button_stable_state == HIGH) {
+        if ((millis() - last_click_time) >= INPUT_DOUBLE_CLICK_INTERVAL_MS) {
+            button_clicked_flag = true; // 确认为单击
+            button_pending = false; // 清除pending状态
+        }
     }
 
     // 始终更新上一次的读数，用于检测下一次变化
@@ -202,9 +241,12 @@ bool input_manager_get_button_long_pressed() {
 
 void input_manager_clear_events() {
     // 清空中断队列
+    portENTER_CRITICAL(&s_encoder_mux);
     encoder_queue_head = 0;
     encoder_queue_tail = 0;
     encoder_queue_count = 0;
+    encoder_counter = 0; // 也清零编码器累积值
+    portEXIT_CRITICAL(&s_encoder_mux);
 
     // 清空按键事件
     button_clicked_flag = false;
@@ -213,5 +255,15 @@ void input_manager_clear_events() {
     button_pending = false; // 也清除pending状态
     last_click_time = 0;
     button_press_start_time = 0;
-    encoder_counter = 0; // 也清零编码器累积值
+}
+
+void input_manager_clear_button_events() {
+    // 只清空按键事件，保留编码器队列
+    button_clicked_flag = false;
+    button_double_clicked_flag = false;
+    button_long_pressed_flag = false;
+    button_pending = false;
+    last_click_time = 0;
+    button_press_start_time = 0;
+    // 注意：不清空 encoder_queue，不清空 encoder_counter
 }

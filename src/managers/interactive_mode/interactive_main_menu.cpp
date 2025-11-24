@@ -6,6 +6,7 @@
 #include "interactive_main_menu.h"
 #include "interactive_common.h"
 #include "../../ui/ui_manager.h"
+#include "../../ui/display_manager.h"
 
 #define MAIN_MENU_ITEM_COUNT 4
 static const char* menu_items[MAIN_MENU_ITEM_COUNT] = {
@@ -47,12 +48,17 @@ interactive_state_t interactive_main_menu_handle(interactive_state_t* state,
 #endif
         menu_logged = true;
 
-        // 仅在模式切换后的首次显示时强制全刷，清除残影并确保屏幕已稳定
+#ifndef TEST_MODE
+        // 仅在模式切换后的首次显示时全刷，否则局刷
         if (g_interactive_needs_initial_refresh) {
             LOG_INFO("Interactive", "Initial display - triggering full refresh");
             ui_manager_trigger_full_refresh();
             g_interactive_needs_initial_refresh = false;
+        } else {
+            // 正常菜单切换，使用局刷
+            display_manager_refresh(false);
         }
+#endif
     }
 
     // Handle encoder rotation - batch consume all deltas
@@ -70,7 +76,9 @@ interactive_state_t interactive_main_menu_handle(interactive_state_t* state,
     // Handle long press - trigger full refresh
     if (input_manager_get_button_long_pressed()) {
         LOG_INFO("Interactive", "Long press detected - triggering full refresh");
+#ifndef TEST_MODE
         ui_manager_trigger_full_refresh();
+#endif
     }
 
     // Handle single click - enter submenu

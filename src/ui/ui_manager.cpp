@@ -5,6 +5,7 @@
 #include "ui_manager.h"
 #include "display_manager.h"
 #include "managers/log_manager.h"
+#include "data/timing_constants.h"
 #include <lvgl.h>
 #include <stdio.h>
 
@@ -124,8 +125,12 @@ void ui_manager_show_shutdown_screen() {
     // 强制 LVGL 同步完成渲染
     lv_refr_now(NULL);
 
-    // 刷新屏幕
-    display_manager_refresh(true);
+    // 刷新屏幕（阻塞，等待刷新完成）
+    // E-paper 全屏刷新通常需要 2-4 秒，使用 5 秒超时作为安全裕度
+    display_result_t result = display_manager_refresh_blocking(true, DISPLAY_SHUTDOWN_REFRESH_TIMEOUT_MS);
+    if (result != DISPLAY_OK) {
+        LOG_ERROR("UI", "Failed to refresh shutdown screen: %d", result);
+    }
 
     LOG_INFO("UI", "<<< show_shutdown_screen END");
 }
@@ -213,7 +218,7 @@ void ui_manager_show_menu(const char* title, const char* items[],
     }
 
     lv_refr_now(NULL);
-    smart_refresh(false);  // 菜单切换，强制全刷
+    // Note: 不自动刷新，由调用者决定刷新策略（局刷/全刷）
 }
 
 void ui_manager_show_status(float humidity_pct, float battery_v,
@@ -349,33 +354,98 @@ void ui_manager_show_watering_progress(uint32_t elapsed_ms, uint32_t total_ms,
         return;
     }
 
-    lv_obj_clean(lv_scr_act());
+    // 静态对象指针 - 跨调用保持，避免重复创建
+    static lv_obj_t * label_title = NULL;
+    static lv_obj_t * label_humidity = NULL;
+    static lv_obj_t * bar_progress = NULL;
+    static lv_obj_t * label_percentage = NULL;
+    static bool is_first_call = true;
+    static float last_humidity = -1.0f;
+    static uint8_t last_pct = 255;  // 初始值设为无效值
+
     lv_obj_t * scr = lv_scr_act();
 
-    // 标题
-    lv_obj_t * label_title = lv_label_create(scr);
-    lv_label_set_text(label_title, "Watering...");
-    lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 10);
+    // 首次调用：创建所有UI对象
+    if (is_first_call || label_title == NULL) {
+        // 如果对象不存在，说明需要重建（例如从其他界面切换回来）
+        if (label_title == NULL) {
+            lv_obj_clean(scr);
+        }
 
-    // 浇水前湿度
-    lv_obj_t * label_humidity = lv_label_create(scr);
-    char buf_humidity[48];
-    snprintf(buf_humidity, sizeof(buf_humidity), "Before: %.0f%%", humidity_before);
-    lv_label_set_text(label_humidity, buf_humidity);
-    lv_obj_align(label_humidity, LV_ALIGN_CENTER, 0, -5);
+        // 1. 标题（静态内容）
+        label_title = lv_label_create(scr);
+        lv_label_set_text(label_title, "Watering...");
+        lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 10);
 
-    // 进度
-    lv_obj_t * label_progress = lv_label_create(scr);
-    char buf_progress[64];
+        // 2. 浇水前湿度（半静态内容）
+        label_humidity = lv_label_create(scr);
+        lv_obj_align(label_humidity, LV_ALIGN_TOP_LEFT, 5, 35);
+
+        // 3. 进度条（增长型，核心优化）
+        bar_progress = lv_bar_create(scr);
+        lv_obj_set_size(bar_progress, 250, 20);  // 宽度250px，高度20px
+        lv_obj_align(bar_progress, LV_ALIGN_CENTER, 0, 5);
+        lv_bar_set_range(bar_progress, 0, 100);
+        lv_bar_set_value(bar_progress, 0, LV_ANIM_OFF);  // 关闭动画
+
+        // 4. 百分比文本（简化格式）
+        label_percentage = lv_label_create(scr);
+        lv_obj_align(label_percentage, LV_ALIGN_CENTER, 0, 35);
+
+        is_first_call = false;
+        last_humidity = humidity_before;
+        last_pct = 255;  // 重置
+
+        // 初始化湿度文本
+        char buf_humidity[48];
+        snprintf(buf_humidity, sizeof(buf_humidity), "Before: %.0f%%", humidity_before);
+        lv_label_set_text(label_humidity, buf_humidity);
+
+        // 首次调用时强制刷新
+        lv_refr_now(NULL);
+        smart_refresh(false);
+    }
+
+    // 后续调用：仅更新动态内容
+
+    // 更新湿度（仅在值变化时，实际上浇水中不会变）
+    if (humidity_before != last_humidity) {
+        char buf_humidity[48];
+        snprintf(buf_humidity, sizeof(buf_humidity), "Before: %.0f%%", humidity_before);
+        lv_label_set_text(label_humidity, buf_humidity);
+        last_humidity = humidity_before;
+    }
+
+    // 计算进度百分比
     uint8_t pct = (uint8_t)((elapsed_ms * 100UL) / total_ms);
     if (pct > 100) pct = 100;
-    snprintf(buf_progress, sizeof(buf_progress), "Progress: %d%% (%lu/%lums)",
-             pct, (unsigned long)elapsed_ms, (unsigned long)total_ms);
-    lv_label_set_text(label_progress, buf_progress);
-    lv_obj_align(label_progress, LV_ALIGN_CENTER, 0, 20);
 
-    lv_refr_now(NULL);
-    smart_refresh(false);  // 进度频繁更新，使用局刷
+    // 仅在进度变化时更新UI
+    if (pct != last_pct) {
+        // 更新进度条（增长型，LVGL内部只更新变化的像素）
+        lv_bar_set_value(bar_progress, pct, LV_ANIM_OFF);
+
+        // 更新百分比文本（简化格式，减少字符变化）
+        char buf_percentage[16];
+        snprintf(buf_percentage, sizeof(buf_percentage), "%d%%", pct);
+        lv_label_set_text(label_percentage, buf_percentage);
+
+        last_pct = pct;
+
+        // 触发局部刷新（仅更新变化区域）
+        lv_refr_now(NULL);
+        smart_refresh(false);
+    }
+    // 如果进度未变化，不触发任何刷新
+}
+
+void ui_manager_reset_watering_progress() {
+    // 通过清空屏幕来触发重置逻辑
+    // 下次调用show_watering_progress时会检测到对象为NULL并重新创建
+    if (s_initialized) {
+        lv_obj_clean(lv_scr_act());
+        LOG_INFO("UI", "Watering progress UI reset");
+    }
 }
 
 void ui_manager_show_watering_result(float humidity_before, float humidity_after) {

@@ -56,10 +56,20 @@ display_result_t display_manager_clear();
 display_result_t display_manager_draw_text(const char* text, int16_t x, int16_t y);
 
 /**
- * @brief 刷新显示
+ * @brief 刷新显示（非阻塞）
  * @param full_refresh true=全屏刷新; false=局部刷新（比较缓冲差异）
+ * @details 将刷新请求发送到队列后立即返回，实际刷新在后台任务中完成
  */
 display_result_t display_manager_refresh(bool full_refresh);
+
+/**
+ * @brief 刷新显示（阻塞）
+ * @param full_refresh true=全屏刷新; false=局部刷新（比较缓冲差异）
+ * @param timeout_ms 等待刷新完成的超时时间（毫秒），0表示永久等待
+ * @details 发送刷新请求并等待刷新完成后才返回。用于关机等关键场景
+ * @return DISPLAY_OK 刷新成功; DISPLAY_ERROR_HW_FAILED 超时或队列满
+ */
+display_result_t display_manager_refresh_blocking(bool full_refresh, uint32_t timeout_ms);
 
 /**
  * @brief 将显示器置于深度睡眠以达成近零功耗

@@ -149,6 +149,9 @@ void loop() {
 
             // 进入新模式的逻辑
             if (current_mode == SYSTEM_MODE_OFF) {
+                // OFF模式前：立即保存所有日志到SPIFFS
+                log_manager_flush_now();
+                delay(100); // 等待写入完成
                 enter_off_mode_logic();
             } else if (current_mode == SYSTEM_MODE_RUN) {
                 run_mode_manager_enter();

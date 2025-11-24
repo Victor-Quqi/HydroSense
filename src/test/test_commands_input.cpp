@@ -65,6 +65,12 @@ void handle_input_poll() {
             event_count++;
         }
 
+        // 检测长按
+        if (input_manager_get_button_long_pressed()) {
+            Serial.println("{\"event\": \"button\", \"type\": \"long_press\"}");
+            event_count++;
+        }
+
         // 缩短延迟，提高响应速度（减少漏检）
         delay(TEST_LOOP_DELAY_MS); // 平衡CPU占用和响应速度
     }

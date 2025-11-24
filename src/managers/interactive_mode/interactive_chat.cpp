@@ -135,7 +135,9 @@ interactive_state_t interactive_chat_handle(interactive_state_t* state) {
     // 长按 - 触发全刷
     if (input_manager_get_button_long_pressed()) {
         LOG_INFO("Interactive", "Long press detected - triggering full refresh");
+#ifndef TEST_MODE
         ui_manager_trigger_full_refresh();
+#endif
     }
 
     // 5. 处理单击确认

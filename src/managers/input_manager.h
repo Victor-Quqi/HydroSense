@@ -67,8 +67,14 @@ bool input_manager_get_button_long_pressed();
 
 /**
  * @brief 清除所有累积的编码器和按键状态
- * @details 用于状态切换时避免累积值干扰，手动调用清零。
+ * @details 用于模式切换时避免累积值干扰，手动调用清零。
  */
 void input_manager_clear_events();
+
+/**
+ * @brief 仅清除按键事件，保留编码器队列
+ * @details 用于状态切换时清除按键状态，但保留编码器旋转事件
+ */
+void input_manager_clear_button_events();
 
 #endif // INPUT_MANAGER_H

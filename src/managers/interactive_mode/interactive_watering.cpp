@@ -65,6 +65,12 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
                 confirm_logged = true;
             }
 
+            // 长按处理：触发全刷
+            if (input_manager_get_button_long_pressed()) {
+                LOG_INFO("Interactive", "Long press - full refresh");
+                ui_manager_trigger_full_refresh();
+            }
+
             if (input_manager_get_button_clicked()) {
                 LOG_INFO("Interactive", "Watering confirmed, starting pump...");
                 actuator_manager_run_pump_for(watering_power, watering_duration_ms);
@@ -111,8 +117,12 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
                     progress_logged = true;
                 }
 #else
-                // 生产环境: 每次循环更新UI（墨水屏可能不会频繁刷新）
-                ui_manager_show_watering_progress(elapsed, watering_duration_ms, humidity_pct);
+                // 生产环境: 添加UI更新节流，防止队列溢出
+                static uint32_t last_ui_update = 0;
+                if (millis() - last_ui_update >= 500) {  // 每500ms更新一次
+                    ui_manager_show_watering_progress(elapsed, watering_duration_ms, humidity_pct);
+                    last_ui_update = millis();
+                }
 #endif
             } else {
                 LOG_INFO("Interactive", "Watering completed");
@@ -120,8 +130,19 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
                 watering_substate = WATERING_COMPLETE;
                 progress_logged = false;
                 complete_logged = false;
+
+                // 重置浇水进度UI状态，准备下次进入时重新创建
+                ui_manager_reset_watering_progress();
+
                 LOG_DEBUG("Interactive", "Switched to WATERING_COMPLETE");
             }
+
+            // 长按处理：触发全刷
+            if (input_manager_get_button_long_pressed()) {
+                LOG_INFO("Interactive", "Long press - full refresh");
+                ui_manager_trigger_full_refresh();
+            }
+
             break;
         }
 
@@ -158,6 +179,12 @@ interactive_state_t interactive_watering_handle(interactive_state_t* state) {
                 ui_manager_show_watering_result(humidity_before_pct, humidity_after_pct);
 #endif
                 complete_logged = true;
+            }
+
+            // 长按处理：触发全刷
+            if (input_manager_get_button_long_pressed()) {
+                LOG_INFO("Interactive", "Long press - full refresh");
+                ui_manager_trigger_full_refresh();
             }
 
             if (input_manager_get_button_double_clicked()) {

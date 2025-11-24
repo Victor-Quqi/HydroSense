@@ -40,6 +40,7 @@ interactive_mode_result_t interactive_mode_manager_enter(void) {
 
     LOG_INFO("Interactive", "Entering interactive mode");
 
+#ifndef TEST_MODE
     // 1. Enable screen power before any display operations
     power_result_t power_result = power_screen_enable(true);
     if (power_result != POWER_OK) {
@@ -58,17 +59,22 @@ interactive_mode_result_t interactive_mode_manager_enter(void) {
         return INTERACTIVE_MODE_ERR_NOT_INITIALIZED;
     }
     LOG_DEBUG("Interactive", "Display manager ready");
+#else
+    LOG_INFO("Interactive", "TEST_MODE: Skipping display initialization");
+#endif
 
     // 4. Clear input events and setup state
     input_manager_clear_events();
     current_state = STATE_MAIN_MENU;
     exit_requested = false;
 
+#ifndef TEST_MODE
     // 5. Set flag for initial full refresh
     g_interactive_needs_initial_refresh = true;
 
     // 移除立即全刷：避免在屏幕可能未稳定时操作
     // 全刷将在第一次显示主菜单时触发（interactive_main_menu_handle）
+#endif
 
     // Initialize first state
     interactive_main_menu_enter();

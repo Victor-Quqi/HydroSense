@@ -40,6 +40,12 @@ void log_manager_log(const char* level, const char* module, const char* format, 
  */
 String log_manager_get_recent_logs(int count = 20);
 
+/**
+ * @brief 立即将RAM缓冲区的日志写入SPIFFS
+ * @details 用于关键时刻（如OFF模式）手动触发持久化
+ */
+void log_manager_flush_now();
+
 
 // --- 日志宏定义 ---
 
