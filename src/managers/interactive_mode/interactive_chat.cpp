@@ -86,13 +86,9 @@ interactive_state_t interactive_chat_handle(interactive_state_t* state) {
     }
 
     // 2. 如果正在加载，跳过输入处理（等待LLM响应）
+    // 注意：在同步阻塞实现中，这个分支实际上不会被执行到
+    // 因为171行显示"Thinking..."后会立即阻塞在LLM调用中
     if (is_loading) {
-#ifndef TEST_MODE
-        // 生产环境: 显示加载动画
-        ui_manager_show_loading("Thinking...");
-#else
-        // TEST_MODE: LOG已经输出"Calling LLM..."
-#endif
         return *state;
     }
 
@@ -165,6 +161,11 @@ interactive_state_t interactive_chat_handle(interactive_state_t* state) {
         LOG_INFO("Interactive", "Calling LLM...");
         is_loading = true;
         logged = false;
+
+#ifndef TEST_MODE
+        // 立即显示"Thinking..."，让用户知道系统正在处理
+        ui_manager_show_loading("Thinking...");
+#endif
 
         // 准备响应缓冲区
         char response_buffer[256];

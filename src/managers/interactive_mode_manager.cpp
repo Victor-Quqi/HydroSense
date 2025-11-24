@@ -15,12 +15,19 @@
 #include "../ui/display_manager.h"
 #include "power_manager.h"
 #include "../data/timing_constants.h"
+#include "../services/wifi_manager.h"
+#include "../services/time_manager.h"
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 // Manager state
 static bool is_initialized = false;
 static interactive_state_t current_state = STATE_MAIN_MENU;
 static bool exit_requested = false;
+
+// Background WiFi and time sync state
+static bool s_ntp_sync_requested = false;
 
 // Global flag for initial full refresh (defined here, declared in interactive_common.h)
 bool g_interactive_needs_initial_refresh = false;
@@ -79,6 +86,13 @@ interactive_mode_result_t interactive_mode_manager_enter(void) {
     // Initialize first state
     interactive_main_menu_enter();
 
+    // 6. Background WiFi connection (non-blocking)
+    WiFiManager& wifi_mgr = WiFiManager::instance();
+    if (!wifi_mgr.isConnected() && wifi_mgr.getState() != WifiState::CONNECTING) {
+        wifi_mgr.connect();
+        LOG_INFO("Interactive", "Background WiFi connection initiated");
+    }
+
     return INTERACTIVE_MODE_OK;
 }
 
@@ -88,12 +102,44 @@ interactive_mode_result_t interactive_mode_manager_exit(void) {
     }
 
     LOG_INFO("Interactive", "Exiting interactive mode");
+
+    // Reset time sync flag for next entry
+    s_ntp_sync_requested = false;
+
     return INTERACTIVE_MODE_OK;
 }
 
 interactive_mode_result_t interactive_mode_manager_loop(void) {
     if (!is_initialized) {
         return INTERACTIVE_MODE_ERR_NOT_INITIALIZED;
+    }
+
+    // Check for WiFi connection success and trigger NTP sync
+    WiFiManager& wifi_mgr = WiFiManager::instance();
+    TimeManager& time_mgr = TimeManager::instance();
+
+    if (wifi_mgr.isConnected() && !s_ntp_sync_requested && !time_mgr.isTimeSynced()) {
+        s_ntp_sync_requested = true;
+
+        // Create temporary task for NTP sync (non-blocking)
+        BaseType_t result = xTaskCreate(
+            [](void* param) {
+                TimeManager::instance().syncNTP();
+                vTaskDelete(NULL);  // Self-delete after completion
+            },
+            "NTPSync",
+            4096,  // Stack size
+            NULL,
+            1,     // Priority
+            NULL
+        );
+
+        if (result == pdPASS) {
+            LOG_INFO("Interactive", "NTP sync task created");
+        } else {
+            LOG_ERROR("Interactive", "Failed to create NTP sync task");
+            s_ntp_sync_requested = false;  // Allow retry
+        }
     }
 
     interactive_state_t prev_state = current_state;

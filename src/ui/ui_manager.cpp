@@ -202,9 +202,9 @@ void ui_manager_show_menu(const char* title, const char* items[],
     lv_label_set_text(label_title, title);
     lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 2);
 
-    // 菜单项（最多5行）
-    int16_t y_offset = 22;
-    for (uint8_t i = 0; i < item_count && i < 5; i++) {
+    // 菜单项（优化布局以支持最多6项）
+    int16_t y_offset = 20;  // 起始Y坐标（从22减少到20）
+    for (uint8_t i = 0; i < item_count && i < 6; i++) {  // 从5增加到6
         lv_obj_t * label_item = lv_label_create(scr);
         char buf[80];
         if (i == selected_index) {
@@ -214,7 +214,7 @@ void ui_manager_show_menu(const char* title, const char* items[],
         }
         lv_label_set_text(label_item, buf);
         lv_obj_align(label_item, LV_ALIGN_TOP_LEFT, 5, y_offset);
-        y_offset += 20;
+        y_offset += 18;  // 每项间距（从20减少到18）
     }
 
     lv_refr_now(NULL);
@@ -327,21 +327,26 @@ void ui_manager_show_watering_confirm(uint8_t power, uint32_t duration_ms,
     // 标题
     lv_obj_t * label_title = lv_label_create(scr);
     lv_label_set_text(label_title, "Water Now");
-    lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 10);
 
     // 当前湿度
     lv_obj_t * label_humidity = lv_label_create(scr);
     char buf_humidity[48];
     snprintf(buf_humidity, sizeof(buf_humidity), "Current: %.0f%%", humidity_before);
     lv_label_set_text(label_humidity, buf_humidity);
-    lv_obj_align(label_humidity, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_align(label_humidity, LV_ALIGN_CENTER, 0, -15);
 
     // 浇水参数
     lv_obj_t * label_params = lv_label_create(scr);
     char buf_params[64];
     snprintf(buf_params, sizeof(buf_params), "Power: %d  Duration: %lums", power, (unsigned long)duration_ms);
     lv_label_set_text(label_params, buf_params);
-    lv_obj_align(label_params, LV_ALIGN_CENTER, 0, 15);
+    lv_obj_align(label_params, LV_ALIGN_CENTER, 0, 10);
+
+    // 操作提示
+    lv_obj_t * label_hint = lv_label_create(scr);
+    lv_label_set_text(label_hint, "Click:Start  2x:Cancel");
+    lv_obj_align(label_hint, LV_ALIGN_BOTTOM_MID, 0, -5);
 
     lv_refr_now(NULL);
     smart_refresh(false);
@@ -358,7 +363,6 @@ void ui_manager_show_watering_progress(uint32_t elapsed_ms, uint32_t total_ms,
     static lv_obj_t * label_title = NULL;
     static lv_obj_t * label_humidity = NULL;
     static lv_obj_t * bar_progress = NULL;
-    static lv_obj_t * label_percentage = NULL;
     static bool is_first_call = true;
     static float last_humidity = -1.0f;
     static uint8_t last_pct = 255;  // 初始值设为无效值
@@ -381,16 +385,12 @@ void ui_manager_show_watering_progress(uint32_t elapsed_ms, uint32_t total_ms,
         label_humidity = lv_label_create(scr);
         lv_obj_align(label_humidity, LV_ALIGN_TOP_LEFT, 5, 35);
 
-        // 3. 进度条（增长型，核心优化）
+        // 3. 进度条（增长型，纯视觉进度指示）
         bar_progress = lv_bar_create(scr);
-        lv_obj_set_size(bar_progress, 250, 20);  // 宽度250px，高度20px
-        lv_obj_align(bar_progress, LV_ALIGN_CENTER, 0, 5);
+        lv_obj_set_size(bar_progress, 250, 30);  // 加高到30px，更醒目
+        lv_obj_align(bar_progress, LV_ALIGN_CENTER, 0, 10);
         lv_bar_set_range(bar_progress, 0, 100);
         lv_bar_set_value(bar_progress, 0, LV_ANIM_OFF);  // 关闭动画
-
-        // 4. 百分比文本（简化格式）
-        label_percentage = lv_label_create(scr);
-        lv_obj_align(label_percentage, LV_ALIGN_CENTER, 0, 35);
 
         is_first_call = false;
         last_humidity = humidity_before;
@@ -420,19 +420,14 @@ void ui_manager_show_watering_progress(uint32_t elapsed_ms, uint32_t total_ms,
     uint8_t pct = (uint8_t)((elapsed_ms * 100UL) / total_ms);
     if (pct > 100) pct = 100;
 
-    // 仅在进度变化时更新UI
+    // 仅在进度变化时更新进度条（无文字，纯增长型视觉指示）
     if (pct != last_pct) {
-        // 更新进度条（增长型，LVGL内部只更新变化的像素）
+        // 更新进度条（增长型，LVGL内部只更新变化的像素区域）
         lv_bar_set_value(bar_progress, pct, LV_ANIM_OFF);
-
-        // 更新百分比文本（简化格式，减少字符变化）
-        char buf_percentage[16];
-        snprintf(buf_percentage, sizeof(buf_percentage), "%d%%", pct);
-        lv_label_set_text(label_percentage, buf_percentage);
 
         last_pct = pct;
 
-        // 触发局部刷新（仅更新变化区域）
+        // 触发局部刷新（仅更新进度条变化区域）
         lv_refr_now(NULL);
         smart_refresh(false);
     }
@@ -460,24 +455,29 @@ void ui_manager_show_watering_result(float humidity_before, float humidity_after
     // 标题
     lv_obj_t * label_title = lv_label_create(scr);
     lv_label_set_text(label_title, "Watering Complete");
-    lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 20);
+    lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 15);
 
     // 浇水前
     lv_obj_t * label_before = lv_label_create(scr);
     char buf_before[48];
     snprintf(buf_before, sizeof(buf_before), "Before: %.0f%%", humidity_before);
     lv_label_set_text(label_before, buf_before);
-    lv_obj_align(label_before, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_align(label_before, LV_ALIGN_CENTER, 0, -15);
 
     // 浇水后
     lv_obj_t * label_after = lv_label_create(scr);
     char buf_after[48];
     snprintf(buf_after, sizeof(buf_after), "After: %.0f%%", humidity_after);
     lv_label_set_text(label_after, buf_after);
-    lv_obj_align(label_after, LV_ALIGN_CENTER, 0, 15);
+    lv_obj_align(label_after, LV_ALIGN_CENTER, 0, 10);
+
+    // 操作提示
+    lv_obj_t * label_hint = lv_label_create(scr);
+    lv_label_set_text(label_hint, "Double-click to return");
+    lv_obj_align(label_hint, LV_ALIGN_BOTTOM_MID, 0, -5);
 
     lv_refr_now(NULL);
-    smart_refresh(false);
+    smart_refresh(true);  // 完成页面使用全刷，清除之前的残影
 }
 
 void ui_manager_show_chat_screen(const char* plant_message,
@@ -491,15 +491,16 @@ void ui_manager_show_chat_screen(const char* plant_message,
     lv_obj_clean(lv_scr_act());
     lv_obj_t * scr = lv_scr_act();
 
-    // 植物消息（截断为2行）
+    // 植物消息（从Y=2开始，高度62px可显示3+行）
     lv_obj_t * label_message = lv_label_create(scr);
     lv_label_set_long_mode(label_message, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(label_message, 286);
+    lv_obj_set_height(label_message, 62);  // 14pt字体约3.3行
     lv_label_set_text(label_message, plant_message);
-    lv_obj_align(label_message, LV_ALIGN_TOP_LEFT, 5, 22);
+    lv_obj_align(label_message, LV_ALIGN_TOP_LEFT, 5, 2);  // 顶部边距2px
 
-    // 选项（最多4个，从第55行开始）
-    int16_t y_offset = 55;
+    // 选项（从Y=66开始，间距15px）
+    int16_t y_offset = 66;
     for (uint8_t i = 0; i < option_count && i < 4; i++) {
         lv_obj_t * label_option = lv_label_create(scr);
         char buf[68];
@@ -510,7 +511,7 @@ void ui_manager_show_chat_screen(const char* plant_message,
         }
         lv_label_set_text(label_option, buf);
         lv_obj_align(label_option, LV_ALIGN_TOP_LEFT, 5, y_offset);
-        y_offset += 18;
+        y_offset += 15;  // 紧凑间距
     }
 
     lv_refr_now(NULL);
