@@ -1,27 +1,29 @@
-# HydroSense - 能量自持型智能浇水系统
+# HydroSense - A Self-Sustaining Smart Watering System
 
-## 项目简介
+[中文版 (Chinese Version)](README_zh.md)
 
-HydroSense 是一个旨在实现**能量自持**、达成“永久续航”级别的智能植物养护终端。
+## Project Introduction
 
-项目的设计哲学融合了**极致的低功耗**与**高效的能量采集**。通过独特的“哨兵-指挥官”双核协同架构，系统在待机模式下的功耗被降至微安级别。同时，可热插拔的太阳能充电模块会在后台静默地补充能量，形成一个完美的能量闭环，使其特别适合需要长期独立运行的户外或离网场景。
+HydroSense is a smart plant care terminal designed to be **energy self-sufficient**, achieving "perpetual endurance."
 
-## 核心技术
+The design philosophy combines **ultra-low power consumption** with **efficient energy harvesting**. Through a unique "Sentinel-Commander" dual-core architecture, the system's standby power consumption is reduced to the microampere level. Meanwhile, a hot-swappable solar charging module silently replenishes energy, creating a perfect energy loop, making it ideal for long-term, independent operation in outdoor or off-grid scenarios.
 
-- **“哨兵-指挥官”双核协同架构**: 主处理器 (指挥官) 在绝大部分时间处于深度睡眠状态，由超低功耗协处理器 (ULP, 哨兵) 以纳瓦级功耗进行周期性环境监测。仅在必要时（如检测到土壤干燥），才唤醒主处理器执行浇水任务，从而极大降低了待机功耗。
+## Core Technologies
 
-- **全链路物理断电**: 系统中的所有非核心外设（如12V升压模块、传感器、墨水屏）都由独立的MOSFET开关在物理层面进行供电控制。在不使用时，它们的电源被彻底切断，实现了真正的零泄漏、零待机功耗。
+- **"Sentinel-Commander" Dual-Core Architecture**: The main processor (Commander) remains in deep sleep most of the time, while an ultra-low-power coprocessor (ULP, Sentinel) periodically monitors the environment with nano-watt power consumption. The main processor is awakened only when necessary (e.g., dry soil is detected) to perform watering tasks, significantly reducing standby power consumption.
 
-- **硬件级启动安全**: 通过为电源开关配备强上拉电阻，确保了在主控芯片上电初始化的短暂“空窗期”内，所有外设均处于明确的关闭状态，防止了意外启动和潜在的硬件冲突。
+- **Full-Link Physical Power Gating**: All non-essential peripherals (like the 12V boost converter, sensors, and e-ink display) are physically power-controlled by independent MOSFET switches. When not in use, their power is completely cut off, achieving true zero-leakage and zero-standby power consumption.
 
-- **模块化太阳能补给**: 太阳能充电系统被设计为一个可选、可热插拔的外部模块。这使得设备既可以在室内作为纯粹的超低功耗设备使用，也可以在户外连接太阳能板，升级为一个完全能量自持的系统。
+- **Hardware-Level Boot Safety**: By equipping the power switches with strong pull-up resistors, all peripherals are ensured to be in a definite "off" state during the brief "window" of the main chip's power-on initialization, preventing accidental startups and potential hardware conflicts.
 
-## 工作流程
+- **Modular Solar Recharging**: The solar charging system is designed as an optional, hot-swappable external module. This allows the device to be used indoors as a pure ultra-low-power device or connected to a solar panel outdoors to be upgraded into a fully energy-self-sufficient system.
 
-HydroSense 的运行模式灵活而智能，旨在适应不同场景的需求：
+## Workflow
 
-1.  **自主运行**: 在默认模式下，系统以极致的节能方式独立工作。它会周期性地通过超低功耗的“哨兵”核心监测土壤湿度，仅在需要浇水时才唤醒主处理器“指挥官”执行任务并**更新屏幕快照**，任务完成后自动返回深度睡眠。
+HydroSense's operation is flexible and intelligent, designed to adapt to different scenarios:
 
-2.  **人机交互**: 用户可以随时将其切换到一个功能丰富的交互模式。在此模式下，设备会**激活实时交互界面**，提供一个直观的菜单。用户不仅可以查看历史数据图表、手动控制浇水，还可以精细调整各项系统参数。
+1.  **Autonomous Operation**: In the default mode, the system operates independently with extreme energy efficiency. It periodically monitors soil moisture using the ultra-low-power "Sentinel" core and only wakes up the "Commander" main processor to perform watering tasks and **update the screen snapshot** when needed. After the task is completed, it automatically returns to deep sleep.
 
-3.  **智能分析**: 在交互模式下，系统还能连接到云端，利用大语言模型（LLM）对采集到的数据进行智能分析，为用户提供专业的植物养护建议。
+2.  **Human-Computer Interaction**: Users can switch to a feature-rich interactive mode at any time. In this mode, the device **activates a real-time interactive interface**, providing an intuitive menu. Users can view historical data charts, manually control watering, and fine-tune various system parameters.
+
+3.  **Intelligent Analysis**: In interactive mode, the system can connect to the cloud and use Large Language Models (LLMs) to perform intelligent analysis on the collected data, providing users with professional plant care advice.
