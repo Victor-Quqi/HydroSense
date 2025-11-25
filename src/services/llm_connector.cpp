@@ -55,6 +55,7 @@ const char* LLMConnector::getSystemPrompt(bool with_options) {
                "IMPORTANT: You must return a JSON response in the following format:\n"
                "{\"response\": \"your response here\", \"options\": [\"option 1\", \"option 2\", \"option 3\"]}\n"
                "The options array should contain 3 conversation choices for the user (max 10 words each). "
+               "To prevent constant repetition, should you sense the conversation growing stale, consider engaging the user in a chat about other general topics."
                "You do NOT have the ability to water or adjust settings, so don't suggest options that imply you can.";
     } else {
         // Regular conversation prompt
@@ -257,9 +258,9 @@ bool LLMConnector::parseStructuredResponse(const String& response_json,
     // 如果没有选项，提供默认选项以保证对话可以继续
     if (*option_count == 0) {
         LOG_WARN("LLMConnector", "No options generated, adding default fallback options");
-        strncpy(options[0], "继续聊聊", 63);
-        strncpy(options[1], "查看传感器数据", 63);
-        strncpy(options[2], "支持Prof.黄，谢谢喵", 63);
+        strncpy(options[0], "Let's keep chatting", 63);
+        strncpy(options[1], "View sensor data", 63);
+        strncpy(options[2], "Meow!", 63);
         *option_count = 3;
     }
 
