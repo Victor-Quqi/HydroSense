@@ -41,5 +41,6 @@ openspec
 misc
 AGENTS.md
 CLAUDE.md
+nul
 
 compile_commands.json
